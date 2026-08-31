@@ -39,9 +39,11 @@
           <div class="rules-panel">
             <h3>Normas rápidas del envite</h3>
             <ul>
-              <li>Se juega en equipos de 2, con 3 manos y 2 de 3 para ganar.</li>
+              <li>Se juega en equipos de 2; cada ronda tiene hasta 3 manos y termina al ganar 2.</li>
+              <li>Las rondas continúan hasta que un equipo consigue 3 chicos.</li>
               <li>La carta visible marca el palo de lo virado.</li>
-              <li>Valor de mayor a menor: 2, Rey, Caballo, Sota, As, 7, 6, 5, 4 y 3.</li>
+              <li>Valor: el 2 del palo virado es el más alto; los 2 de otros palos son los más bajos.</li>
+              <li>Después van Rey, Caballo, Sota, As, 7, 6, 5, 4 y 3.</li>
               <li>Las cartas del palo virado ganan a las de cualquier otro palo.</li>
               <li>Si el primer jugador abre un palo, el resto debe seguirlo si lo tiene.</li>
               <li>Cuando un equipo llega a 11 piedras entra en tumbo.</li>
@@ -60,6 +62,7 @@
             <div class="action-row">
               <button id="team-a-btn" class="secondary">Equipo A</button>
               <button id="team-b-btn" class="secondary">Equipo B</button>
+              <button id="abandon-round-btn" class="danger">Abandonar ronda</button>
               <button id="return-menu-btn" class="secondary">Volver al menú</button>
               <button id="close-room-btn" class="danger">Cerrar sala</button>
             </div>
@@ -199,6 +202,18 @@
 
         </section>
       </main>
+    </div>
+
+    <div id="game-finished-modal" class="game-modal hidden" role="dialog" aria-modal="true" aria-labelledby="game-finished-title">
+      <div class="game-modal-card">
+        <p class="eyebrow">Partida terminada</p>
+        <h2 id="game-finished-title">¡Habéis llegado a 3 chicos!</h2>
+        <p id="game-finished-text">La partida ha finalizado.</p>
+        <div class="action-row">
+          <button id="play-again-btn">Jugar de nuevo</button>
+          <button id="close-finished-room-btn" class="danger">Cerrar sala</button>
+        </div>
+      </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

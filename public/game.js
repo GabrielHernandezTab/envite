@@ -11,8 +11,13 @@ const elements = {
   spectateBtn: document.getElementById('spectate-btn'),
   teamABtn: document.getElementById('team-a-btn'),
   teamBBtn: document.getElementById('team-b-btn'),
+  abandonRoundBtn: document.getElementById('abandon-round-btn'),
   returnMenuBtn: document.getElementById('return-menu-btn'),
   closeRoomBtn: document.getElementById('close-room-btn'),
+  gameFinishedModal: document.getElementById('game-finished-modal'),
+  gameFinishedText: document.getElementById('game-finished-text'),
+  playAgainBtn: document.getElementById('play-again-btn'),
+  closeFinishedRoomBtn: document.getElementById('close-finished-room-btn'),
   statusText: document.getElementById('status-text'),
   scoreA: document.getElementById('score-a'),
   scoreB: document.getElementById('score-b'),
@@ -304,6 +309,7 @@ function renderHistory(history, players) {
     item.innerHTML = `
       <strong>Mano ${handNumber}</strong>
       <span>${winnerName} · Equipo ${entry.winnerTeam === 0 ? 'A' : 'B'}</span>
+      <span>Ganó con ${entry.winningCard || 'carta desconocida'}</span>
       <small>${entry.scoreAfter?.[0] ?? 0} - ${entry.scoreAfter?.[1] ?? 0} puntos</small>
     `;
     elements.historyList.appendChild(item);
@@ -334,7 +340,8 @@ function updateRoom(room) {
     renderVisibleCard(room.game.visibleCard);
     const isTumbo = room.game.status === 'tumbo';
     const currentTeamCanSend = myPlayer && myPlayer.team !== null && room.game.status === 'playing'
-      && !room.game.pendingBet && room.game.nextBetLevel && room.game.lastBetTeam !== myPlayer.team;
+      && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel
+      && room.game.lastBetTeam !== myPlayer.team;
     const isBetTarget = myPlayer && myPlayer.team !== null && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;
 
     elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.team !== room.game.tumboTeam);
@@ -370,13 +377,19 @@ function updateRoom(room) {
       elements.betResponseText.textContent = `Envío a ${levelLabel}. ¿Quieres jugar, subirlo o rechazarlo?`;
     }
 
-    elements.statusText.textContent = room.game.status === 'finished' ? 'Partida finalizada' : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';
-    elements.roundText.textContent = `Ronda ${Math.min(room.game.round, room.game.maxRounds)} de ${room.game.maxRounds}`;
+    elements.statusText.textContent = room.game.status === 'finished'
+      ? 'Partida finalizada'
+      : room.game.status === 'trick-result'
+        ? 'Mano terminada'
+        : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';
+    elements.roundText.textContent = `Ronda ${room.game.round} · hasta 3 chicos`;
 
     if (room.game.turnPlayerId === myPlayerId && myRole === 'player') {
       elements.turnIndicator.textContent = 'Es tu turno';
     } else if (myRole === 'spectator') {
       elements.turnIndicator.textContent = 'Modo espectador';
+    } else if (room.game.status === 'trick-result') {
+      elements.turnIndicator.textContent = 'Mostrando resultado';
     } else {
       const name = players.find((player) => player.id === room.game.turnPlayerId)?.name || 'Otro';
       elements.turnIndicator.textContent = `Turno de ${name}`;
@@ -389,7 +402,15 @@ function updateRoom(room) {
       } else {
         elements.resultText.textContent = `Resultado final: ${winner === 0 ? 'Equipo A' : 'Equipo B'} gana ${room.game.scores[0]} - ${room.game.scores[1]}`;
       }
+      const isRoomOwner = room.ownerId === myPlayerId;
+      elements.gameFinishedModal.classList.toggle('hidden', !isRoomOwner);
+      elements.gameFinishedText.textContent = winner === 0
+        ? `Equipo A ha ganado ${room.game.chicos[0]} chicos.`
+        : `Equipo B ha ganado ${room.game.chicos[1]} chicos.`;
+    } else if (room.game.status === 'trick-result') {
+      elements.resultText.textContent = 'Revisad las cartas: la siguiente mano comenzará en un momento.';
     } else if (room.game.status === 'tumbo') {
+      elements.gameFinishedModal.classList.add('hidden');
       const team = room.game.tumboTeam === 0 ? 'Equipo A' : 'Equipo B';
       elements.resultText.textContent = `${team} está en tumbo: tiene 11 piedras y debe decidir si acepta o se achica.`;
     } else if (room.players.length < 4) {
@@ -397,13 +418,15 @@ function updateRoom(room) {
     } else if (room.players.some((player) => player.team === null)) {
       elements.resultText.textContent = 'Cada jugador debe elegir su equipo.';
     } else {
+      elements.gameFinishedModal.classList.add('hidden');
       elements.resultText.textContent = 'La partida ha empezado. Haz tu jugada.';
     }
   } else {
+    elements.gameFinishedModal.classList.add('hidden');
     renderVisibleCard(null);
     elements.tumboPanel.classList.add('hidden');
     elements.statusText.textContent = 'Esperando jugadores';
-    elements.roundText.textContent = 'Ronda 1 de 3';
+    elements.roundText.textContent = 'Ronda 1 · hasta 3 chicos';
     elements.resultText.textContent = room.players.length >= 4
       ? 'Todos los jugadores están en la sala. Elige equipo para empezar.'
       : 'Necesitas 4 jugadores para iniciar la partida.';
@@ -411,6 +434,7 @@ function updateRoom(room) {
 
   const isRoomOwner = room.ownerId === myPlayerId;
   elements.closeRoomBtn.style.display = isRoomOwner ? 'inline-flex' : 'none';
+  elements.abandonRoundBtn.style.display = room.game?.status === 'playing' ? 'inline-flex' : 'none';
   elements.returnMenuBtn.style.display = 'inline-flex';
 
   elements.teamABtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
@@ -477,6 +501,7 @@ elements.returnMenuBtn.addEventListener('click', () => {
 });
 elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { team: 0 }));
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));
+elements.abandonRoundBtn.addEventListener('click', () => socket.emit('abandon-round'));
 elements.tumboYesBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: true }));
 elements.tumboNoBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: false }));
 elements.envite4Btn.addEventListener('click', () => socket.emit('send-bet', { level: 4 }));
@@ -491,6 +516,12 @@ elements.betRaise9Btn?.addEventListener('click', () => socket.emit('bet-response
 elements.betRaiseChicoBtn?.addEventListener('click', () => socket.emit('bet-response', { accept: 'raise', level: 'chico-fuera' }));
 elements.closeRoomBtn.addEventListener('click', () => {
   socket.emit('close-room');
+});
+elements.closeFinishedRoomBtn.addEventListener('click', () => {
+  socket.emit('close-room');
+});
+elements.playAgainBtn.addEventListener('click', () => {
+  socket.emit('play-again');
 });
 
 socket.on('joined-room', ({ code, role }) => {

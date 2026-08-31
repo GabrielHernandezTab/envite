@@ -135,7 +135,8 @@ function serializeRoom(room, viewerId = null) {
       challengeTeam: room.game.challengeTeam,
       pendingBet: room.game.pendingBet,
       nextBetLevel: room.game.nextBetLevel,
-      lastBetTeam: room.game.lastBetTeam
+      lastBetTeam: room.game.lastBetTeam,
+      betUsedThisRound: room.game.betUsedThisRound
     } : null,
     teamCounts: {
       0: room.players.filter((player) => player.team === 0).length,
@@ -187,6 +188,11 @@ function buildAlternatingTurnOrder(room, starterId = null) {
   return [...ordered.slice(startIndex), ...ordered.slice(0, startIndex)].map((player) => player.id);
 }
 
+function getRandomStarterId(room) {
+  const players = room.players.filter((player) => player.team === 0 || player.team === 1);
+  return players[Math.floor(Math.random() * players.length)]?.id || null;
+}
+
 function startGame(room) {
   if (room.players.length !== 4) return;
   if (room.players.filter((player) => player.team === 0).length !== 2) return;
@@ -195,7 +201,7 @@ function startGame(room) {
   const deck = createDeck();
   const visibleCard = deck.pop();
   const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
-  const starterId = buildAlternatingTurnOrder(room)[0];
+  const starterId = getRandomStarterId(room);
 
   room.players.forEach((player) => {
     player.hand = [];
@@ -211,7 +217,7 @@ function startGame(room) {
   room.game = {
     status: 'playing',
     round: 1,
-    maxRounds: 3,
+    maxRounds: null,
     cardsPerPlayer: 3,
     deck,
     visibleCard,
@@ -229,7 +235,8 @@ function startGame(room) {
     pendingBet: null,
     roundAward: { team: null, points: 0, chico: false },
     nextBetLevel: 4,
-    lastBetTeam: null
+    lastBetTeam: null,
+    betUsedThisRound: false
   };
 
   notifyRoom(room);
@@ -242,10 +249,15 @@ function compareCards(cardA, cardB, trumpSuit) {
   if (aTrump && !bTrump) return 1;
   if (!aTrump && bTrump) return -1;
   if (aTrump && bTrump) {
-    return (rankPriority[cardA.rank] ?? 0) - (rankPriority[cardB.rank] ?? 0);
+    return getCardPriority(cardA, trumpSuit) - getCardPriority(cardB, trumpSuit);
   }
   if (cardA.suit !== cardB.suit) return -1;
-  return (rankPriority[cardA.rank] ?? 0) - (rankPriority[cardB.rank] ?? 0);
+  return getCardPriority(cardA, trumpSuit) - getCardPriority(cardB, trumpSuit);
+}
+
+function getCardPriority(card, trumpSuit) {
+  if (card.rank === 2 && card.suit !== trumpSuit) return 0;
+  return rankPriority[card.rank] ?? 0;
 }
 
 function maybeAwardChico(room, team) {
@@ -281,16 +293,14 @@ function awardStoneForRound(room, team) {
   const roundAward = room.game.roundAward || { team: null, points: 0, chico: false };
   const points = roundAward.points > 0
     ? (roundAward.team === null || roundAward.team === team ? roundAward.points : 0)
-    : 2;
+    : 0;
   room.game.scores[team] = Math.min((room.game.scores[team] || 0) + points, 11);
-  if (roundAward.points > 0 && (roundAward.team === null || roundAward.team === team) && roundAward.chico) {
-    room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
-  }
+  room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
   room.game.history.push({
     roundWinner: team,
     reason: '2 de 3 manos',
     pointsAwarded: points,
-    chicoAwarded: roundAward.points > 0 && (roundAward.team === null || roundAward.team === team) && roundAward.chico,
+    chicoAwarded: true,
     scoreAfter: { ...room.game.scores },
     handWins: { ...room.game.handWins }
   });
@@ -299,14 +309,13 @@ function awardStoneForRound(room, team) {
   room.game.roundAward = { team: null, points: 0, chico: false };
   room.game.nextBetLevel = 4;
   room.game.lastBetTeam = null;
+  room.game.betUsedThisRound = false;
   room.game.playedCards = [];
   room.game.round += 1;
 
-  if (room.game.round > room.game.maxRounds) {
+  if (room.game.chicos[team] >= 3) {
     room.game.status = 'finished';
-    const team0 = room.game.scores[0];
-    const team1 = room.game.scores[1];
-    room.game.finalWinner = team0 === team1 ? 'empate' : team0 > team1 ? 0 : 1;
+    room.game.finalWinner = team;
     return;
   }
 
@@ -325,8 +334,41 @@ function awardStoneForRound(room, team) {
 
   room.game.deck = deck;
   room.game.status = 'playing';
-  room.game.turnPlayerId = orderedPlayers[0]?.id || room.players[0]?.id;
+  room.game.turnPlayerId = getRandomStarterId(room) || orderedPlayers[0]?.id || room.players[0]?.id;
   room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+}
+
+function reshuffleRound(room) {
+  const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
+  const deck = createDeck();
+
+  room.players.forEach((player) => {
+    player.hand = [];
+  });
+
+  room.game.visibleCard = deck.pop();
+  for (let i = 0; i < 3; i += 1) {
+    orderedPlayers.forEach((player) => {
+      player.hand.push(deck.pop());
+    });
+  }
+
+  room.game.deck = deck;
+  room.game.playedCards = [];
+  room.game.handWins = { 0: 0, 1: 0 };
+  room.game.roundAward = { team: null, points: 0, chico: false };
+  room.game.pendingBet = null;
+  room.game.nextBetLevel = 4;
+  room.game.lastBetTeam = null;
+  room.game.betUsedThisRound = false;
+  room.game.status = 'playing';
+  room.game.turnPlayerId = getRandomStarterId(room) || orderedPlayers[0]?.id || room.players[0]?.id;
+  room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+  room.game.history.push({
+    round: room.game.round,
+    reshuffled: true,
+    message: 'La ronda se ha abandonado y se han repartido nuevas cartas.'
+  });
 }
 
 function resolveTrick(room) {
@@ -343,10 +385,15 @@ function resolveTrick(room) {
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
   room.game.handWins[winningTeam] = (room.game.handWins[winningTeam] || 0) + 1;
 
+  if (!room.game.roundAward?.points) {
+    room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + 2, 11);
+  }
+
   room.game.history.push({
     trick: room.game.round,
     winnerTeam: winningTeam,
     winnerPlayer: room.players.find((player) => player.id === winnerEntry.playerId)?.name,
+    winningCard: winnerEntry.card.pretty,
     handWins: { ...room.game.handWins },
     scoreAfter: { ...room.game.scores },
     played: played.map((entry) => ({
@@ -364,6 +411,11 @@ function resolveTrick(room) {
 
   if (!room.game.pendingTumbo && room.game.handWins[winningTeam] >= 2) {
     awardStoneForRound(room, winningTeam);
+
+    if (room.game.status === 'finished') {
+      notifyRoom(room);
+      return;
+    }
 
     if (room.game.scores[winningTeam] >= 11) {
       room.game.tumboTeam = winningTeam;
@@ -537,7 +589,15 @@ io.on('connection', (socket) => {
 
     const currentIndex = room.game.turnOrder.indexOf(socket.id);
     if (room.game.playedCards.length === 4) {
-      resolveTrick(room);
+      const gameAtTrickEnd = room.game;
+      room.game.status = 'trick-result';
+      room.game.turnPlayerId = null;
+      notifyRoom(room);
+      setTimeout(() => {
+        if (rooms.get(room.code) !== room || room.game !== gameAtTrickEnd || room.game.status !== 'trick-result') return;
+        room.game.status = 'playing';
+        resolveTrick(room);
+      }, 2200);
       return;
     }
 
@@ -546,9 +606,20 @@ io.on('connection', (socket) => {
     notifyRoom(room);
   });
 
+  socket.on('abandon-round', () => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || !room.game || room.game.status !== 'playing') return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player) return;
+
+    reshuffleRound(room);
+    notifyRoom(room);
+  });
+
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
-    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet) return;
+    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet || room.game.betUsedThisRound) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.team === null) return;
@@ -560,6 +631,8 @@ io.on('connection', (socket) => {
     const betValue = value === 'chico-fuera' ? 'chico-fuera' : Number(value);
     if (betValue !== room.game.nextBetLevel) return;
     if (room.game.lastBetTeam === player.team) return;
+
+    room.game.betUsedThisRound = true;
 
     room.game.pendingBet = {
       challengerTeam: player.team,
@@ -732,6 +805,20 @@ io.on('connection', (socket) => {
 
     io.to(room.code).emit('room-closed');
     rooms.delete(room.code);
+  });
+
+  socket.on('play-again', () => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || room.ownerId !== socket.id || !room.game || room.game.status !== 'finished') return;
+
+    room.players.forEach((player) => {
+      player.team = null;
+      player.score = 0;
+      player.ready = false;
+      player.hand = [];
+    });
+    room.game = null;
+    notifyRoom(room);
   });
 
   socket.on('return-to-lobby', () => {
