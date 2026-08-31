@@ -16,6 +16,8 @@ const elements = {
   statusText: document.getElementById('status-text'),
   scoreA: document.getElementById('score-a'),
   scoreB: document.getElementById('score-b'),
+  chicosA: document.getElementById('chicos-a'),
+  chicosB: document.getElementById('chicos-b'),
   roundText: document.getElementById('round-text'),
   resultText: document.getElementById('result-text'),
   playersGrid: document.getElementById('players-grid'),
@@ -25,7 +27,17 @@ const elements = {
   turnIndicator: document.getElementById('turn-indicator'),
   tumboPanel: document.getElementById('tumbo-panel'),
   tumboYesBtn: document.getElementById('tumbo-yes-btn'),
-  tumboNoBtn: document.getElementById('tumbo-no-btn')
+  tumboNoBtn: document.getElementById('tumbo-no-btn'),
+  envitePanel: document.getElementById('envite-panel'),
+  envite2Btn: document.getElementById('envite-2-btn'),
+  envite4Btn: document.getElementById('envite-4-btn'),
+  envite7Btn: document.getElementById('envite-7-btn'),
+  envite9Btn: document.getElementById('envite-9-btn'),
+  enviteChicoBtn: document.getElementById('envite-chico-btn'),
+  betResponsePanel: document.getElementById('bet-response-panel'),
+  betResponseText: document.getElementById('bet-response-text'),
+  betAcceptBtn: document.getElementById('bet-accept-btn'),
+  betRejectBtn: document.getElementById('bet-reject-btn')
 };
 
 let myPlayerId = null;
@@ -206,6 +218,8 @@ function updateRoom(room) {
   elements.roomCode.value = room.code;
   elements.scoreA.textContent = String(room.game?.scores?.[0] ?? 0);
   elements.scoreB.textContent = String(room.game?.scores?.[1] ?? 0);
+  elements.chicosA.textContent = `Chicos: ${room.game?.chicos?.[0] ?? 0}`;
+  elements.chicosB.textContent = `Chicos: ${room.game?.chicos?.[1] ?? 0}`;
 
   const players = room.players || [];
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
@@ -217,7 +231,18 @@ function updateRoom(room) {
   if (room.game) {
     renderVisibleCard(room.game.visibleCard);
     const isTumbo = room.game.status === 'tumbo';
+    const currentTeamCanSend = myPlayer && myPlayer.team !== null && room.game.status === 'playing' && !room.game.pendingBet;
+    const isBetTarget = myPlayer && myPlayer.team !== null && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;
+
     elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.team !== room.game.tumboTeam);
+    elements.envitePanel.classList.toggle('hidden', !currentTeamCanSend);
+    elements.betResponsePanel.classList.toggle('hidden', !isBetTarget);
+
+    if (room.game.pendingBet && isBetTarget) {
+      const levelLabel = room.game.pendingBet.level === 'chico-fuera' ? 'chico fuera' : `${room.game.pendingBet.level}`;
+      elements.betResponseText.textContent = `Han enviado ${levelLabel}. ¿aceptas?`;
+    }
+
     elements.statusText.textContent = room.game.status === 'finished' ? 'Partida finalizada' : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';
     elements.roundText.textContent = `Ronda ${Math.min(room.game.round, room.game.maxRounds)} de ${room.game.maxRounds}`;
 
@@ -327,6 +352,13 @@ elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { t
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));
 elements.tumboYesBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: true }));
 elements.tumboNoBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: false }));
+elements.envite2Btn.addEventListener('click', () => socket.emit('send-bet', { level: 2 }));
+elements.envite4Btn.addEventListener('click', () => socket.emit('send-bet', { level: 4 }));
+elements.envite7Btn.addEventListener('click', () => socket.emit('send-bet', { level: 7 }));
+elements.envite9Btn.addEventListener('click', () => socket.emit('send-bet', { level: 9 }));
+elements.enviteChicoBtn.addEventListener('click', () => socket.emit('send-bet', { level: 'chico-fuera' }));
+elements.betAcceptBtn.addEventListener('click', () => socket.emit('bet-response', { accept: true }));
+elements.betRejectBtn.addEventListener('click', () => socket.emit('bet-response', { accept: false }));
 elements.closeRoomBtn.addEventListener('click', () => {
   socket.emit('close-room');
 });

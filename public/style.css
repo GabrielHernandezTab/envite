@@ -187,6 +187,13 @@ input {
   min-height: 110px;
 }
 
+.team-card small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  display: block;
+  margin-top: 6px;
+}
+
 .team-card.team-a {
   background: linear-gradient(135deg, rgba(122, 229, 130, 0.16), rgba(122, 229, 130, 0.06));
 }
@@ -345,6 +352,11 @@ input {
 
 .tumbo-panel strong {
   font-size: 1.1rem;
+}
+
+#bet-response-panel {
+  background: linear-gradient(135deg, rgba(122, 229, 130, 0.1), rgba(40, 122, 64, 0.08));
+  border-color: rgba(122, 229, 130, 0.35);
 }
 
 .card-btn {

@@ -57,15 +57,17 @@
                 <div class="team-meta">
                   <span class="meta-label">Equipo A</span>
                   <strong id="score-a">0</strong>
+                  <small id=" chicos-a">Chicos: 0</small>
                 </div>
-                <span class="team-chip">Puntos</span>
+                <span class="team-chip">Piedras</span>
               </div>
               <div class="team-card team-b">
                 <div class="team-meta">
                   <span class="meta-label">Equipo B</span>
                   <strong id="score-b">0</strong>
+                  <small id="chicos-b">Chicos: 0</small>
                 </div>
-                <span class="team-chip">Puntos</span>
+                <span class="team-chip">Piedras</span>
               </div>
             </div>
 
@@ -73,6 +75,27 @@
               <p class="eyebrow">Partida</p>
               <p id="round-text">Ronda 1 de 3</p>
               <p id="result-text">Esperando que los 4 jugadores elijan equipo.</p>
+            </div>
+          </div>
+
+          <div id="envite-panel" class="hidden tumbo-panel">
+            <strong>Envío</strong>
+            <p>Canta el nivel de apuesta para tu equipo.</p>
+            <div class="action-row">
+              <button id="envite-2-btn" class="secondary">2</button>
+              <button id="envite-4-btn" class="secondary">4</button>
+              <button id="envite-7-btn" class="secondary">7</button>
+              <button id="envite-9-btn" class="secondary">9</button>
+              <button id="envite-chico-btn" class="secondary">Chico fuera</button>
+            </div>
+          </div>
+
+          <div id="bet-response-panel" class="hidden tumbo-panel">
+            <strong>Respuesta al envío</strong>
+            <p id="bet-response-text">Han enviado una apuesta.</p>
+            <div class="action-row">
+              <button id="bet-accept-btn">Aceptar</button>
+              <button id="bet-reject-btn" class="danger">No aceptar</button>
             </div>
           </div>
 

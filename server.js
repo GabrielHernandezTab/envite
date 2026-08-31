@@ -132,7 +132,8 @@ function serializeRoom(room, viewerId = null) {
       trickWinner: room.game.trickWinner,
       tumboTeam: room.game.tumboTeam,
       pendingTumbo: room.game.pendingTumbo,
-      challengeTeam: room.game.challengeTeam
+      challengeTeam: room.game.challengeTeam,
+      pendingBet: room.game.pendingBet
     } : null,
     teamCounts: {
       0: room.players.filter((player) => player.team === 0).length,
@@ -222,7 +223,8 @@ function startGame(room) {
     turnOrder: buildAlternatingTurnOrder(room, starterId),
     tumboTeam: null,
     pendingTumbo: false,
-    challengeTeam: null
+    challengeTeam: null,
+    pendingBet: null
   };
 
   notifyRoom(room);
@@ -296,6 +298,21 @@ function resolveTrick(room) {
     playerId: winnerEntry.playerId,
     card: winnerEntry.card
   };
+
+  if (room.game.pendingBet && room.game.pendingBet.accepted) {
+    const pool = room.game.pendingBet.level === 'chico-fuera' ? 'chico' : 'points';
+    if (pool === 'points') {
+      room.game.scores[winningTeam] = Math.min(room.game.scores[winningTeam] + room.game.pendingBet.level, 11);
+    } else {
+      room.game.chicos[winningTeam] += 1;
+      room.game.history.push({
+        chico: true,
+        team: winningTeam,
+        chicos: { ...room.game.chicos }
+      });
+    }
+    room.game.pendingBet = null;
+  }
 
   if (room.game.scores[winningTeam] >= 11) {
     room.game.tumboTeam = winningTeam;
@@ -486,6 +503,67 @@ io.on('connection', (socket) => {
 
     const nextPlayerId = room.game.turnOrder[(currentIndex + 1) % room.game.turnOrder.length];
     room.game.turnPlayerId = nextPlayerId;
+    notifyRoom(room);
+  });
+
+  socket.on('send-bet', ({ level }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet) return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player || player.team === null) return;
+
+    const value = String(level).toLowerCase();
+    const validLevels = ['2', '4', '7', '9', 'chico-fuera'];
+    if (!validLevels.includes(value)) return;
+
+    const betValue = value === 'chico-fuera' ? 'chico-fuera' : Number(value);
+    room.game.pendingBet = {
+      challengerTeam: player.team,
+      targetTeam: 1 - player.team,
+      level: betValue,
+      accepted: null
+    };
+
+    room.game.history.push({
+      envio: true,
+      team: player.team,
+      level: betValue,
+      message: value === 'chico-fuera' ? 'Chico fuera propuesto' : `Envío a ${betValue} propuesto`
+    });
+
+    notifyRoom(room);
+  });
+
+  socket.on('bet-response', ({ accept }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || !room.game || !room.game.pendingBet) return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player || player.team !== room.game.pendingBet.targetTeam) return;
+
+    if (accept === false) {
+      const senderTeam = room.game.pendingBet.challengerTeam;
+      room.game.scores[senderTeam] = Math.min(room.game.scores[senderTeam] + 2, 11);
+      room.game.history.push({
+        envio: false,
+        team: senderTeam,
+        rejectedBy: player.team,
+        score: { ...room.game.scores }
+      });
+      room.game.pendingBet = null;
+      notifyRoom(room);
+      return;
+    }
+
+    room.game.pendingBet.accepted = true;
+    room.game.history.push({
+      envio: true,
+      team: room.game.pendingBet.challengerTeam,
+      acceptedBy: room.game.pendingBet.targetTeam,
+      level: room.game.pendingBet.level,
+      message: 'El envío ha sido aceptado.'
+    });
     notifyRoom(room);
   });
 
