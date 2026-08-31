@@ -40,7 +40,7 @@ function getTeamLabel(team) {
 
 function getSuitMeta(suit) {
   const map = {
-    oros: { short: 'O', symbol: '♦', className: 'red', label: 'oros' },
+    oros: { short: 'O', symbol: '●', className: 'red', label: 'oros' },
     copas: { short: 'C', symbol: '♥', className: 'red', label: 'copas' },
     espadas: { short: 'E', symbol: '♠', className: 'black', label: 'espadas' },
     bastos: { short: 'B', symbol: '♣', className: 'black', label: 'bastos' }
@@ -239,7 +239,7 @@ function updateRoom(room) {
       }
     } else if (room.game.status === 'tumbo') {
       const team = room.game.tumboTeam === 0 ? 'Equipo A' : 'Equipo B';
-      elements.resultText.textContent = `${team} está en tumbo. Debe decidir si quiere jugar o no.`;
+      elements.resultText.textContent = `${team} está en tumbo: tiene 11 piedras y debe decidir si acepta o se achica.`;
     } else if (room.players.length < 4) {
       elements.resultText.textContent = 'Esperando a que haya 4 jugadores para empezar.';
     } else if (room.players.some((player) => player.team === null)) {

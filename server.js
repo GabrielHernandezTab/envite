@@ -157,6 +157,33 @@ function getMostBalancedTeam(room) {
   return 1;
 }
 
+function buildAlternatingTurnOrder(room, starterId = null) {
+  const aPlayers = room.players
+    .filter((player) => player.team === 0)
+    .sort((a, b) => a.seat - b.seat);
+  const bPlayers = room.players
+    .filter((player) => player.team === 1)
+    .sort((a, b) => a.seat - b.seat);
+
+  const ordered = [];
+  for (let i = 0; i < Math.max(aPlayers.length, bPlayers.length); i += 1) {
+    if (aPlayers[i]) ordered.push(aPlayers[i]);
+    if (bPlayers[i]) ordered.push(bPlayers[i]);
+  }
+
+  if (!ordered.length) return [];
+
+  let startIndex = 0;
+  if (starterId) {
+    const starterIndex = ordered.findIndex((player) => player.id === starterId);
+    if (starterIndex >= 0) {
+      startIndex = starterIndex;
+    }
+  }
+
+  return [...ordered.slice(startIndex), ...ordered.slice(0, startIndex)].map((player) => player.id);
+}
+
 function startGame(room) {
   if (room.players.length !== 4) return;
   if (room.players.filter((player) => player.team === 0).length !== 2) return;
@@ -164,7 +191,8 @@ function startGame(room) {
 
   const deck = createDeck();
   const visibleCard = deck.pop();
-  const activePlayers = room.players.slice();
+  const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
+  const starterId = buildAlternatingTurnOrder(room)[0];
 
   room.players.forEach((player) => {
     player.hand = [];
@@ -172,7 +200,7 @@ function startGame(room) {
   });
 
   for (let i = 0; i < 3; i += 1) {
-    activePlayers.forEach((player) => {
+    orderedPlayers.forEach((player) => {
       player.hand.push(deck.pop());
     });
   }
@@ -190,8 +218,8 @@ function startGame(room) {
     playedCards: [],
     history: [],
     trickWinner: null,
-    turnPlayerId: activePlayers[0].id,
-    turnOrder: activePlayers.map((player) => player.id),
+    turnPlayerId: starterId,
+    turnOrder: buildAlternatingTurnOrder(room, starterId),
     tumboTeam: null,
     pendingTumbo: false,
     challengeTeam: null
@@ -248,11 +276,14 @@ function resolveTrick(room) {
   }, played[0]);
 
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
+  const previousScore = room.game.scores[winningTeam];
+  const nextScore = previousScore + 2;
+  room.game.scores[winningTeam] = Math.min(nextScore, 11);
 
-  room.game.scores[winningTeam] += 2;
   room.game.history.push({
     trick: room.game.round,
     winnerTeam: winningTeam,
+    scoreAfter: { ...room.game.scores },
     played: played.map((entry) => ({
       player: room.players.find((player) => player.id === entry.playerId)?.name,
       card: entry.card.pretty,
@@ -266,14 +297,13 @@ function resolveTrick(room) {
     card: winnerEntry.card
   };
 
-  if (room.game.scores[winningTeam] >= 11 && room.game.scores[winningTeam] <= 12) {
+  if (room.game.scores[winningTeam] >= 11) {
     room.game.tumboTeam = winningTeam;
     room.game.status = 'tumbo';
     room.game.pendingTumbo = true;
-  }
-
-  if (room.game.tumboTeam !== null && room.game.pendingTumbo === false) {
-    room.game.tumboTeam = null;
+    room.game.playedCards = [];
+    notifyRoom(room);
+    return;
   }
 
   if (!room.game.pendingTumbo) {
@@ -298,8 +328,8 @@ function resolveTrick(room) {
       player.score = room.game.scores[player.team];
     });
   } else {
-    const nextStarter = room.players.find((player) => player.id === winnerEntry.playerId);
-    room.game.turnPlayerId = nextStarter.id;
+    room.game.turnPlayerId = winnerEntry.playerId;
+    room.game.turnOrder = buildAlternatingTurnOrder(room, winnerEntry.playerId);
   }
 
   notifyRoom(room);
@@ -431,20 +461,31 @@ io.on('connection', (socket) => {
     const card = player.hand.find((entry) => entry.id === cardId);
     if (!card) return;
 
+    const leadSuit = room.game.playedCards[0]?.card?.suit;
+    const hasLeadSuit = leadSuit && player.hand.some((entry) => entry.suit === leadSuit);
+    if (hasLeadSuit && card.suit !== leadSuit) {
+      socket.emit('join-error', `Debes seguir el palo ${leadSuit} si lo tienes.`);
+      return;
+    }
+
     player.hand = player.hand.filter((entry) => entry.id !== cardId);
     room.game.playedCards.push({
       playerId: socket.id,
       card
     });
 
-    const nextIndex = room.players.findIndex((entry) => entry.id === socket.id);
+    if (!room.game.turnOrder || !room.game.turnOrder.length) {
+      room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+    }
+
+    const currentIndex = room.game.turnOrder.indexOf(socket.id);
     if (room.game.playedCards.length === 4) {
       resolveTrick(room);
       return;
     }
 
-    const nextPlayer = room.players[(nextIndex + 1) % room.players.length];
-    room.game.turnPlayerId = nextPlayer.id;
+    const nextPlayerId = room.game.turnOrder[(currentIndex + 1) % room.game.turnOrder.length];
+    room.game.turnPlayerId = nextPlayerId;
     notifyRoom(room);
   });
 
@@ -462,27 +503,51 @@ io.on('connection', (socket) => {
 
     if (accept === false) {
       const otherTeam = 1 - tumboTeam;
-      room.game.scores[otherTeam] += 1;
+      room.game.scores[otherTeam] = Math.min(room.game.scores[otherTeam] + 1, 11);
       room.game.tumboTeam = null;
       room.game.status = 'playing';
       room.game.history.push({
         tumbo: false,
         team: tumboTeam,
+        decision: 'rechaza',
         score: { ...room.game.scores }
       });
+      room.game.turnPlayerId = room.game.turnOrder?.[0] || room.players[0].id;
       notifyRoom(room);
       return;
     }
 
+    const opposingTeam = 1 - tumboTeam;
     room.game.challengeTeam = tumboTeam;
-    room.game.status = 'playing';
-    room.game.tumboTeam = null;
-    room.game.pendingTumbo = false;
     room.game.history.push({
       tumbo: true,
       team: tumboTeam,
-      message: 'El equipo en tumbo quiere jugar.'
+      decision: 'acepta',
+      message: 'El equipo en tumbo acepta jugar y define el chico.'
     });
+
+    const canWinChico = room.game.scores[tumboTeam] >= 11;
+    if (canWinChico) {
+      room.game.chicos[tumboTeam] += 1;
+      room.game.history.push({
+        chico: true,
+        team: tumboTeam,
+        chicos: { ...room.game.chicos }
+      });
+      if (room.game.chicos[tumboTeam] >= 3) {
+        room.game.status = 'finished';
+        room.game.finalWinner = tumboTeam;
+        notifyRoom(room);
+        return;
+      }
+    } else {
+      room.game.scores[opposingTeam] = Math.min(room.game.scores[opposingTeam] + 3, 11);
+    }
+
+    room.game.status = 'playing';
+    room.game.tumboTeam = null;
+    room.game.pendingTumbo = false;
+    room.game.turnPlayerId = room.game.turnOrder?.[0] || room.players[0].id;
     notifyRoom(room);
   });
 
