@@ -452,6 +452,11 @@ io.on('connection', (socket) => {
     const teamNumber = Number(team);
     if (![0, 1].includes(teamNumber)) return;
 
+    if (player.team !== null) {
+      socket.emit('join-error', 'Ya has elegido un equipo y no puedes cambiarlo.');
+      return;
+    }
+
     if (room.players.filter((entry) => entry.team === teamNumber).length >= 2) {
       socket.emit('join-error', 'Ese equipo ya está completo.');
       return;

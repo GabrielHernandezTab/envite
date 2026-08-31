@@ -320,6 +320,10 @@ input {
   letter-spacing: 0.08em;
 }
 
+.player-card .label:last-of-type {
+  color: var(--good-strong);
+}
+
 .player-card .hand-mini {
   display: flex;
   flex-wrap: wrap;

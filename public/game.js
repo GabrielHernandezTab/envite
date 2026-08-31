@@ -52,7 +52,7 @@ function getTeamLabel(team) {
 
 function getSuitMeta(suit) {
   const map = {
-    oros: { short: 'O', symbol: '●', className: 'red', label: 'oros' },
+    oros: { short: 'O', symbol: '♦', className: 'red', label: 'oros' },
     copas: { short: 'C', symbol: '♥', className: 'red', label: 'copas' },
     espadas: { short: 'E', symbol: '♠', className: 'black', label: 'espadas' },
     bastos: { short: 'B', symbol: '♣', className: 'black', label: 'bastos' }
@@ -156,6 +156,8 @@ function renderPlayers(players, room) {
   players.forEach((player) => {
     const card = document.createElement('div');
     card.className = 'player-card';
+    if (player.team === 0) card.style.borderColor = 'rgba(122, 229, 130, 0.5)';
+    if (player.team === 1) card.style.borderColor = 'rgba(255, 122, 122, 0.5)';
 
     const label = document.createElement('div');
     label.className = 'label';
@@ -167,6 +169,10 @@ function renderPlayers(players, room) {
     const team = document.createElement('div');
     team.className = 'label';
     team.textContent = getTeamLabel(player.team);
+
+    const status = document.createElement('div');
+    status.className = 'label';
+    status.textContent = player.team === null ? 'Sin equipo' : 'En equipo';
 
     const handMini = document.createElement('div');
     handMini.className = 'hand-mini';
@@ -186,7 +192,7 @@ function renderPlayers(players, room) {
       handMini.appendChild(mini);
     }
 
-    card.append(label, name, team, handMini);
+    card.append(label, name, team, status, handMini);
     elements.playersGrid.appendChild(card);
   });
 }
