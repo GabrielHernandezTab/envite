@@ -11,6 +11,10 @@ const elements = {
   spectateBtn: document.getElementById('spectate-btn'),
   teamABtn: document.getElementById('team-a-btn'),
   teamBBtn: document.getElementById('team-b-btn'),
+  mandadorBtn: document.getElementById('mandador-btn'),
+  mandadoBtn: document.getElementById('mandado-btn'),
+  roleSelectionModal: document.getElementById('role-selection-modal'),
+  renounceRoundBtn: document.getElementById('renounce-round-btn'),
   abandonRoundBtn: document.getElementById('abandon-round-btn'),
   returnMenuBtn: document.getElementById('return-menu-btn'),
   closeRoomBtn: document.getElementById('close-room-btn'),
@@ -40,6 +44,7 @@ const elements = {
   tableCards: document.getElementById('table-cards'),
   hand: document.getElementById('hand'),
   handPanel: document.getElementById('hand-panel'),
+  faceDownBtn: document.getElementById('face-down-btn'),
   historyList: document.getElementById('history-list'),
   turnIndicator: document.getElementById('turn-indicator'),
   tumboPanel: document.getElementById('tumbo-panel'),
@@ -63,6 +68,7 @@ const elements = {
 let myPlayerId = null;
 let myRole = 'player';
 let currentRoomCode = '';
+let playFaceDown = false;
 
 function getTeamLabel(team) {
   if (team === 0) return 'Equipo A';
@@ -138,7 +144,9 @@ function renderHand(hand, room) {
 
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
-      socket.emit('play-card', { cardId: card.id });
+      socket.emit('play-card', { cardId: card.id, faceDown: playFaceDown });
+      playFaceDown = false;
+      elements.faceDownBtn.textContent = 'Jugar carta boca abajo: no';
     });
 
     elements.hand.appendChild(btn);
@@ -161,13 +169,19 @@ function renderTableCards(playedCards, players) {
     item.className = 'table-card';
 
     const player = players.find((p) => p.id === entry.playerId);
-    const mini = renderCardFace(entry.card, true);
+    const mini = entry.faceDown ? document.createElement('div') : renderCardFace(entry.card, true);
+    if (entry.faceDown) {
+      mini.className = 'card-back';
+      mini.textContent = '?';
+    }
     mini.style.width = '50px';
     mini.style.height = '72px';
     mini.style.display = 'inline-block';
 
     const label = document.createElement('div');
-    label.textContent = `${player?.name || 'Jugador'}: ${entry.card.label} de ${entry.card.suit}`;
+    label.textContent = entry.faceDown
+      ? `${player?.name || 'Jugador'}: carta boca abajo`
+      : `${player?.name || 'Jugador'}: ${entry.card.label} de ${entry.card.suit}`;
     item.appendChild(mini);
     item.appendChild(label);
     elements.tableCards.appendChild(item);
@@ -250,7 +264,7 @@ function renderPlayers(players, room) {
 
     const team = document.createElement('div');
     team.className = 'label';
-    team.textContent = getTeamLabel(player.team);
+    team.textContent = `${getTeamLabel(player.team)} · ${player.role || 'Rol pendiente'}`;
 
     const status = document.createElement('div');
     status.className = 'label';
@@ -357,7 +371,9 @@ function updateRoom(room) {
   const players = room.players || [];
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myHand = myPlayer?.hand || [];
+  elements.roleSelectionModal.classList.toggle('hidden', !myPlayer || myPlayer.team === null || myPlayer.role !== null);
   elements.handPanel.classList.toggle('hidden', !room.game);
+  elements.faceDownBtn.textContent = `Jugar carta boca abajo: ${playFaceDown ? 'sí' : 'no'}`;
   renderHand(myHand, room);
   renderTableCards(room.game?.playedCards || [], players);
   renderPlayers(players, room);
@@ -367,12 +383,13 @@ function updateRoom(room) {
   if (room.game) {
     renderVisibleCard(room.game.visibleCard);
     const isTumbo = room.game.status === 'tumbo';
-    const currentTeamCanSend = myPlayer && myPlayer.team !== null && room.game.status === 'playing'
+    const currentTeamCanSend = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null && room.game.status === 'playing'
       && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel
       && room.game.lastBetTeam !== myPlayer.team;
-    const isBetTarget = myPlayer && myPlayer.team !== null && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;
+    const isBetTarget = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null
+      && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;
 
-    elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.team !== room.game.tumboTeam);
+    elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.role !== 'mandador' || myPlayer?.team !== room.game.tumboTeam);
     elements.envitePanel.classList.toggle('hidden', !currentTeamCanSend);
     elements.betResponsePanel.classList.toggle('hidden', !isBetTarget);
 
@@ -463,6 +480,7 @@ function updateRoom(room) {
   const isRoomOwner = room.ownerId === myPlayerId;
   elements.closeRoomBtn.style.display = isRoomOwner ? 'inline-flex' : 'none';
   elements.abandonRoundBtn.style.display = room.game?.status === 'playing' ? 'inline-flex' : 'none';
+  elements.renounceRoundBtn.style.display = room.game?.status === 'playing' && myPlayer?.role === 'mandador' ? 'inline-flex' : 'none';
   elements.returnMenuBtn.style.display = 'inline-flex';
 
   elements.teamABtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
@@ -529,7 +547,14 @@ elements.returnMenuBtn.addEventListener('click', () => {
 });
 elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { team: 0 }));
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));
+elements.mandadorBtn.addEventListener('click', () => socket.emit('select-role', { role: 'mandador' }));
+elements.mandadoBtn.addEventListener('click', () => socket.emit('select-role', { role: 'mandado' }));
 elements.abandonRoundBtn.addEventListener('click', () => socket.emit('abandon-round'));
+elements.renounceRoundBtn.addEventListener('click', () => socket.emit('renounce-round'));
+elements.faceDownBtn.addEventListener('click', () => {
+  playFaceDown = !playFaceDown;
+  elements.faceDownBtn.textContent = `Jugar carta boca abajo: ${playFaceDown ? 'sí' : 'no'}`;
+});
 elements.tumboYesBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: true }));
 elements.tumboNoBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: false }));
 elements.envite4Btn.addEventListener('click', () => socket.emit('send-bet', { level: 4 }));

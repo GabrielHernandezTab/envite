@@ -109,6 +109,7 @@ function serializeRoom(room, viewerId = null) {
       id: player.id,
       name: player.name,
       team: player.team,
+      role: player.role,
       score: player.score,
       ready: player.ready,
       hand: player.id === viewerId ? player.hand : [],
@@ -128,7 +129,11 @@ function serializeRoom(room, viewerId = null) {
       handWins: room.game.handWins,
       visibleCard: room.game.visibleCard,
       turnPlayerId: room.game.turnPlayerId,
-      playedCards: room.game.playedCards,
+      playedCards: room.game.playedCards.map((entry) => ({
+        playerId: entry.playerId,
+        card: entry.faceDown ? null : entry.card,
+        faceDown: Boolean(entry.faceDown)
+      })),
       history: room.game.history,
       trickWinner: room.game.trickWinner,
       tumboTeam: room.game.tumboTeam,
@@ -204,6 +209,7 @@ function startGame(room) {
   if (room.players.length !== 4) return;
   if (room.players.filter((player) => player.team === 0).length !== 2) return;
   if (room.players.filter((player) => player.team === 1).length !== 2) return;
+  if (!room.players.every((player) => player.role === 'mandador' || player.role === 'mandado')) return;
 
   const deck = createDeck();
   const visibleCard = deck.pop();
@@ -300,7 +306,7 @@ function awardStoneForRound(room, team) {
   const roundAward = room.game.roundAward || { team: null, points: 0, chico: false };
   const points = roundAward.points > 0
     ? (roundAward.team === null || roundAward.team === team ? roundAward.points : 0)
-    : 0;
+    : 2;
   room.game.scores[team] = Math.min((room.game.scores[team] || 0) + points, 11);
   room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
   room.game.history.push({
@@ -381,31 +387,28 @@ function reshuffleRound(room) {
 function resolveTrick(room) {
   const played = room.game.playedCards;
   const trumpSuit = room.game.visibleCard.suit;
+  const visiblePlayed = played.filter((entry) => !entry.faceDown);
 
-  const winnerEntry = played.reduce((winner, entry) => {
+  const winnerEntry = visiblePlayed.reduce((winner, entry) => {
     const currentCard = entry.card;
     const winnerCard = winner.card;
     const comparison = compareCards(currentCard, winnerCard, trumpSuit);
     return comparison > 0 ? entry : winner;
-  }, played[0]);
+  }, visiblePlayed[0] || played[0]);
 
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
   room.game.handWins[winningTeam] = (room.game.handWins[winningTeam] || 0) + 1;
-
-  if (!room.game.roundAward?.points) {
-    room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + 2, 11);
-  }
 
   room.game.history.push({
     trick: room.game.round,
     winnerTeam: winningTeam,
     winnerPlayer: room.players.find((player) => player.id === winnerEntry.playerId)?.name,
-    winningCard: winnerEntry.card.pretty,
+    winningCard: winnerEntry.faceDown ? 'carta boca abajo' : winnerEntry.card.pretty,
     handWins: { ...room.game.handWins },
     scoreAfter: { ...room.game.scores },
     played: played.map((entry) => ({
       player: room.players.find((player) => player.id === entry.playerId)?.name,
-      card: entry.card.pretty,
+      card: entry.faceDown ? 'carta boca abajo' : entry.card.pretty,
       team: room.players.find((player) => player.id === entry.playerId)?.team
     }))
   });
@@ -455,6 +458,7 @@ io.on('connection', (socket) => {
       id: socket.id,
       name: playerName,
       team: null,
+      role: null,
       score: 0,
       ready: false,
       hand: [],
@@ -494,6 +498,7 @@ io.on('connection', (socket) => {
       id: socket.id,
       name: playerName,
       team: null,
+      role: null,
       score: 0,
       ready: false,
       hand: [],
@@ -558,10 +563,21 @@ io.on('connection', (socket) => {
     player.team = teamNumber;
     player.ready = true;
 
-    if (room.players.length === 4 && room.players.every((entry) => entry.team !== null)) {
+    if (room.players.length === 4 && room.players.every((entry) => entry.team !== null && entry.role !== null)) {
       startGame(room);
     }
 
+    notifyRoom(room);
+  });
+
+  socket.on('select-role', ({ role }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || room.game) return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player || player.team === null || player.role !== null || !['mandador', 'mandado'].includes(role)) return;
+
+    player.role = role;
     notifyRoom(room);
   });
 
@@ -589,7 +605,7 @@ io.on('connection', (socket) => {
       });
   });
 
-  socket.on('play-card', ({ cardId }) => {
+  socket.on('play-card', ({ cardId, faceDown = false }) => {
     const room = getRoomBySocketId(socket.id);
     if (!room || !room.game || room.game.status !== 'playing') return;
 
@@ -611,7 +627,8 @@ io.on('connection', (socket) => {
     player.hand = player.hand.filter((entry) => entry.id !== cardId);
     room.game.playedCards.push({
       playerId: socket.id,
-      card
+      card,
+      faceDown: Boolean(faceDown)
     });
 
     if (!room.game.turnOrder || !room.game.turnOrder.length) {
@@ -648,12 +665,29 @@ io.on('connection', (socket) => {
     notifyRoom(room);
   });
 
+  socket.on('renounce-round', () => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || !room.game || room.game.status !== 'playing') return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player || player.role !== 'mandador') return;
+
+    reshuffleRound(room);
+    room.game.history.push({
+      round: room.game.round,
+      renounced: true,
+      player: player.name,
+      message: 'El mandador ha renunciado y se han repartido nuevas cartas.'
+    });
+    notifyRoom(room);
+  });
+
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
     if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet || room.game.betUsedThisRound) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
-    if (!player || player.team === null) return;
+    if (!player || player.role !== 'mandador' || player.team === null) return;
 
     const value = String(level).toLowerCase();
     const validLevels = ['4', '7', '9', 'chico-fuera'];
@@ -691,7 +725,7 @@ io.on('connection', (socket) => {
     if (!room || !room.game || !room.game.pendingBet) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
-    if (!player || player.team !== room.game.pendingBet.targetTeam) return;
+    if (!player || player.role !== 'mandador' || player.team !== room.game.pendingBet.targetTeam) return;
 
     if (accept === 'raise' && level !== undefined) {
       const candidateLevel = level === 'chico-fuera' ? level : Number(level);
@@ -770,7 +804,7 @@ io.on('connection', (socket) => {
     if (!room || !room.game || room.game.status !== 'tumbo') return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
-    if (!player) return;
+    if (!player || player.role !== 'mandador') return;
 
     const tumboTeam = room.game.tumboTeam;
     if (player.team !== tumboTeam) return;
@@ -844,6 +878,7 @@ io.on('connection', (socket) => {
 
     room.players.forEach((player) => {
       player.team = null;
+      player.role = null;
       player.score = 0;
       player.ready = false;
       player.hand = [];
@@ -896,7 +931,7 @@ io.on('connection', (socket) => {
       room.players[0].isHost = true;
     }
 
-    if (!room.game && room.players.length === 4 && room.players.every((player) => player.team !== null)) {
+    if (!room.game && room.players.length === 4 && room.players.every((player) => player.team !== null && player.role !== null)) {
       startGame(room);
     }
 

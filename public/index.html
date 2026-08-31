@@ -62,6 +62,7 @@
             <div class="action-row">
               <button id="team-a-btn" class="secondary">Equipo A</button>
               <button id="team-b-btn" class="secondary">Equipo B</button>
+              <button id="renounce-round-btn" class="danger">Renuncio</button>
               <button id="abandon-round-btn" class="danger">Abandonar ronda</button>
               <button id="return-menu-btn" class="secondary">Volver al menú</button>
               <button id="close-room-btn" class="danger">Cerrar sala</button>
@@ -119,6 +120,14 @@
               <button id="bet-raise-chico-btn" class="secondary">Subir a chico</button>
             </div>
           </div>
+          <div id="tumbo-panel" class="hidden tumbo-panel">
+            <strong>El equipo está en tumbo</strong>
+            <p>Debes decidir si quieres jugar o pasar la apuesta.</p>
+            <div class="action-row">
+              <button id="tumbo-yes-btn">Quiero jugar</button>
+              <button id="tumbo-no-btn" class="danger">No quiero jugar</button>
+            </div>
+          </div>
 
           <div class="play-area">
             <div class="casino-table-wrap">
@@ -157,6 +166,7 @@
                   <p>Tu mano</p>
                   <span id="turn-indicator">Esperando turno</span>
                 </div>
+                <button id="face-down-btn" class="secondary face-down-toggle" type="button">Jugar carta boca abajo: no</button>
                 <div class="hand" id="hand"></div>
               </div>
             </div>
@@ -170,14 +180,7 @@
             <div id="history-list" class="history-list"></div>
           </section>
 
-          <div id="tumbo-panel" class="hidden tumbo-panel">
-            <strong>El equipo está en tumbo</strong>
-            <p>Debes decidir si quieres jugar o pasar la apuesta.</p>
-            <div class="action-row">
-              <button id="tumbo-yes-btn">Quiero jugar</button>
-              <button id="tumbo-no-btn" class="danger">No quiero jugar</button>
-            </div>
-          </div>
+          
 
           <div class="team-board" id="team-board">
             <div class="team-summary team-a">
@@ -223,6 +226,18 @@
         <div class="action-row">
           <button id="play-again-btn">Jugar de nuevo</button>
           <button id="close-finished-room-btn" class="danger">Cerrar sala</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="role-selection-modal" class="game-modal hidden" role="dialog" aria-modal="true" aria-labelledby="role-selection-title">
+      <div class="game-modal-card">
+        <p class="eyebrow">Equipo seleccionado</p>
+        <h2 id="role-selection-title">Elige tu función</h2>
+        <p>Decide si serás mandador o mandado para esta partida.</p>
+        <div class="action-row">
+          <button id="mandador-btn">Mandador</button>
+          <button id="mandado-btn" class="secondary">Mandado</button>
         </div>
       </div>
     </div>

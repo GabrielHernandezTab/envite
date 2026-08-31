@@ -477,6 +477,18 @@ input {
   backdrop-filter: blur(3px);
 }
 
+.card-back {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 72px;
+  border-radius: 8px;
+  border: 3px solid #d6b56a;
+  background: repeating-linear-gradient(45deg, #315c74 0 6px, #214254 6px 12px);
+  color: #f8d76d;
+  font-weight: 800;
+}
+
 .tag {
   color: var(--muted);
   font-size: 0.72rem;
