@@ -651,98 +651,29 @@ input {
 }
 
 .card-face .card-symbol {
-  font-size: clamp(1rem, 1.6vw, 1.5rem);
+  font-size: 1rem;
   line-height: 1;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-auto-rows: 1fr;
-  align-items: center;
+  align-content: center;
   justify-items: center;
-  gap: 1px 3px;
+  gap: 8px;
   font-family: Georgia, serif;
   text-shadow: 0 2px 0 rgba(0,0,0,0.08);
 }
 
-.card-pip {
-  display: grid;
-  place-items: center;
-  min-width: 18px;
-  min-height: 18px;
+.card-rank-label {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.9;
 }
 
-.card-symbol.pip-count-1,
-.card-symbol.pip-count-3 {
-  grid-template-columns: 1fr;
+.suit-icon {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
 }
 
-.card-symbol.pip-count-5,
-.card-symbol.pip-count-7 {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.card-symbol.pip-count-6 {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.court-card {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr auto;
-  gap: 2px;
-}
-
-.court-figure {
-  position: relative;
-  width: 54px;
-  height: 70px;
-  display: block;
-  filter: drop-shadow(0 2px 1px rgba(0,0,0,0.2));
-}
-
-.figure-head,
-.figure-body,
-.figure-weapon {
-  position: absolute;
-  display: block;
-}
-
-.figure-head {
-  width: 18px;
-  height: 18px;
-  left: 18px;
-  top: 3px;
-  border-radius: 50%;
-  background: #e4ae7a;
-  border: 2px solid currentColor;
-}
-
-.figure-body {
-  width: 34px;
-  height: 40px;
-  left: 10px;
-  top: 22px;
-  border-radius: 45% 45% 18% 18%;
-  background: currentColor;
-  border: 3px solid rgba(35, 45, 58, 0.7);
-}
-
-.figure-weapon {
-  width: 4px;
-  height: 56px;
-  right: 1px;
-  top: 7px;
-  background: #c8d5dc;
-  border: 1px solid #53636d;
-  transform: rotate(20deg);
-  transform-origin: bottom;
-}
-
-.court-figure.rank-10 .figure-body { background: #ba3047; }
-.court-figure.rank-11 .figure-body { background: #d49a27; }
-.court-figure.rank-12 .figure-body { background: #356da0; }
-
-.court-title {
+.suit-label {
   font-family: Arial, sans-serif;
-  font-size: 0.52rem;
+  font-size: 0.68rem;
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.04em;

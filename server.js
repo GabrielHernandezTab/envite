@@ -567,6 +567,9 @@ io.on('connection', (socket) => {
       previousLevel: null,
       accepted: null
     };
+    room.game.nextBetLevel = betValue === 4 ? 7
+      : betValue === 7 ? 9
+        : betValue === 9 ? 'chico-fuera' : null;
 
     room.game.history.push({
       envio: true,
@@ -598,6 +601,8 @@ io.on('connection', (socket) => {
           previousLevel,
           accepted: null
         };
+        room.game.nextBetLevel = candidateLevel === 7 ? 9
+          : candidateLevel === 9 ? 'chico-fuera' : null;
         room.game.history.push({
           envio: true,
           team: player.team,

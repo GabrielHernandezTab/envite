@@ -83,27 +83,20 @@ function renderCardFace(card, compact = false) {
   const symbol = document.createElement('div');
   symbol.className = `card-symbol suit-symbol ${meta.symbolClass}`;
 
-  if (card && card.rank >= 1 && card.rank <= 7) {
-    symbol.classList.add(`pip-count-${card.rank}`);
-    for (let index = 0; index < card.rank; index += 1) {
-      const pip = document.createElement('span');
-      pip.className = 'card-pip';
-      pip.textContent = meta.symbol;
-      symbol.appendChild(pip);
-    }
-  } else if (card && card.rank >= 10) {
-    symbol.classList.add('court-card');
-    const figure = document.createElement('span');
-    figure.className = `court-figure rank-${card.rank}`;
-    figure.innerHTML = '<span class="figure-head"></span><span class="figure-body"></span><span class="figure-weapon"></span>';
-    symbol.appendChild(figure);
-    const title = document.createElement('small');
-    title.className = 'court-title';
-    title.textContent = card.rank === 10 ? 'Sota' : card.rank === 11 ? 'Caballo' : 'Rey';
-    symbol.appendChild(title);
-  } else {
-    symbol.textContent = meta.symbol;
-  }
+  const rankLabel = document.createElement('strong');
+  rankLabel.className = 'card-rank-label';
+  rankLabel.textContent = card?.label || '-';
+  symbol.appendChild(rankLabel);
+
+  const suitIcon = document.createElement('span');
+  suitIcon.className = 'suit-icon';
+  suitIcon.textContent = meta.symbol;
+  symbol.appendChild(suitIcon);
+
+  const suitLabel = document.createElement('small');
+  suitLabel.className = 'suit-label';
+  suitLabel.textContent = meta.label;
+  symbol.appendChild(suitLabel);
 
   const footer = document.createElement('div');
   footer.className = 'card-footer';
