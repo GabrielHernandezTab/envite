@@ -82,7 +82,8 @@ function getRoom(code) {
       players: [],
       spectators: [],
       game: null,
-      ownerId: null
+      ownerId: null,
+      teamChats: { 0: [], 1: [] }
     });
   }
   return rooms.get(code);
@@ -138,6 +139,12 @@ function serializeRoom(room, viewerId = null) {
       lastBetTeam: room.game.lastBetTeam,
       betUsedThisRound: room.game.betUsedThisRound
     } : null,
+    teamChats: room.players.reduce((chats, player) => {
+      if (player.id === viewerId && player.team !== null) {
+        chats[player.team] = (room.teamChats?.[player.team] || []).slice(-50);
+      }
+      return chats;
+    }, {}),
     teamCounts: {
       0: room.players.filter((player) => player.team === 0).length,
       1: room.players.filter((player) => player.team === 1).length
@@ -556,6 +563,30 @@ io.on('connection', (socket) => {
     }
 
     notifyRoom(room);
+  });
+
+  socket.on('team-chat', ({ text }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room) return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    const messageText = String(text || '').trim().slice(0, 180);
+    if (!player || player.team === null || !messageText) return;
+
+    const message = {
+      playerId: player.id,
+      playerName: player.name,
+      text: messageText,
+      timestamp: Date.now()
+    };
+    room.teamChats = room.teamChats || { 0: [], 1: [] };
+    room.teamChats[player.team] = [...(room.teamChats[player.team] || []), message].slice(-50);
+
+    room.players
+      .filter((entry) => entry.team === player.team)
+      .forEach((entry) => {
+        io.to(entry.id).emit('team-chat-message', message);
+      });
   });
 
   socket.on('play-card', ({ cardId }) => {

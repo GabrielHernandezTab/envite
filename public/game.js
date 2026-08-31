@@ -26,6 +26,11 @@ const elements = {
   roundText: document.getElementById('round-text'),
   resultText: document.getElementById('result-text'),
   playersGrid: document.getElementById('players-grid'),
+  teamChatPanel: document.getElementById('team-chat-panel'),
+  teamChatLabel: document.getElementById('team-chat-label'),
+  teamChatMessages: document.getElementById('team-chat-messages'),
+  teamChatForm: document.getElementById('team-chat-form'),
+  teamChatInput: document.getElementById('team-chat-input'),
   teamACount: document.getElementById('team-a-count'),
   teamBCount: document.getElementById('team-b-count'),
   teamAPlayers: document.getElementById('team-a-players'),
@@ -316,6 +321,28 @@ function renderHistory(history, players) {
   });
 }
 
+function renderTeamChat(messages, player) {
+  const canChat = myRole === 'player' && player?.team !== null && player?.team !== undefined;
+  elements.teamChatPanel.classList.toggle('hidden', !canChat);
+  if (!canChat) return;
+
+  elements.teamChatLabel.textContent = `Equipo ${player.team === 0 ? 'A' : 'B'} · solo compañeros`;
+  elements.teamChatMessages.innerHTML = '';
+  (messages || []).forEach((message) => {
+    const item = document.createElement('div');
+    item.className = `team-chat-message${message.playerId === myPlayerId ? ' own' : ''}`;
+    const meta = document.createElement('div');
+    meta.className = 'team-chat-meta';
+    meta.textContent = message.playerId === myPlayerId ? 'Tú' : message.playerName;
+    const text = document.createElement('div');
+    text.className = 'team-chat-text';
+    text.textContent = message.text;
+    item.append(meta, text);
+    elements.teamChatMessages.appendChild(item);
+  });
+  elements.teamChatMessages.scrollTop = elements.teamChatMessages.scrollHeight;
+}
+
 function updateRoom(room) {
   if (!room) return;
 
@@ -335,6 +362,7 @@ function updateRoom(room) {
   renderTableCards(room.game?.playedCards || [], players);
   renderPlayers(players, room);
   renderHistory(room.game?.history || [], players);
+  renderTeamChat(room.teamChats?.[myPlayer?.team] || [], myPlayer);
 
   if (room.game) {
     renderVisibleCard(room.game.visibleCard);
@@ -523,6 +551,13 @@ elements.closeFinishedRoomBtn.addEventListener('click', () => {
 elements.playAgainBtn.addEventListener('click', () => {
   socket.emit('play-again');
 });
+elements.teamChatForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const text = elements.teamChatInput.value.trim();
+  if (!text) return;
+  socket.emit('team-chat', { text });
+  elements.teamChatInput.value = '';
+});
 
 socket.on('joined-room', ({ code, role }) => {
   myPlayerId = socket.id;
@@ -536,6 +571,24 @@ socket.on('joined-room', ({ code, role }) => {
 
 socket.on('room-state', (room) => {
   updateRoom(room);
+});
+
+socket.on('team-chat-history', ({ team, messages }) => {
+  renderTeamChat(messages, { team });
+});
+
+socket.on('team-chat-message', (message) => {
+  const item = document.createElement('div');
+  item.className = `team-chat-message${message.playerId === myPlayerId ? ' own' : ''}`;
+  const meta = document.createElement('div');
+  meta.className = 'team-chat-meta';
+  meta.textContent = message.playerId === myPlayerId ? 'Tú' : message.playerName;
+  const text = document.createElement('div');
+  text.className = 'team-chat-text';
+  text.textContent = message.text;
+  item.append(meta, text);
+  elements.teamChatMessages.appendChild(item);
+  elements.teamChatMessages.scrollTop = elements.teamChatMessages.scrollHeight;
 });
 
 socket.on('join-error', (message) => {
