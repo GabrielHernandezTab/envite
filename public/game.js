@@ -11,6 +11,7 @@ const elements = {
   spectateBtn: document.getElementById('spectate-btn'),
   teamABtn: document.getElementById('team-a-btn'),
   teamBBtn: document.getElementById('team-b-btn'),
+  returnMenuBtn: document.getElementById('return-menu-btn'),
   closeRoomBtn: document.getElementById('close-room-btn'),
   statusText: document.getElementById('status-text'),
   scoreA: document.getElementById('score-a'),
@@ -157,6 +158,7 @@ function updateRoom(room) {
 
   const isRoomOwner = room.ownerId === myPlayerId;
   elements.closeRoomBtn.style.display = isRoomOwner ? 'inline-flex' : 'none';
+  elements.returnMenuBtn.style.display = 'inline-flex';
 
   elements.teamABtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
   elements.teamBBtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
@@ -211,6 +213,15 @@ function leaveRoom() {
 elements.createRoomBtn.addEventListener('click', createRoom);
 elements.joinRoomBtn.addEventListener('click', joinRoom);
 elements.spectateBtn.addEventListener('click', spectateRoom);
+elements.returnMenuBtn.addEventListener('click', () => {
+  socket.emit('return-to-lobby');
+  myPlayerId = null;
+  myRole = 'player';
+  currentRoomCode = '';
+  elements.roomCode.value = '';
+  elements.setupBox.classList.remove('hidden');
+  elements.gameBox.classList.add('hidden');
+});
 elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { team: 0 }));
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));
 elements.closeRoomBtn.addEventListener('click', () => {
