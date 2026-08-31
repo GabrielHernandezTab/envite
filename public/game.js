@@ -350,12 +350,37 @@ function updateRoom(room) {
   if (room.game) {
     renderVisibleCard(room.game.visibleCard);
     const isTumbo = room.game.status === 'tumbo';
-    const currentTeamCanSend = myPlayer && myPlayer.team !== null && room.game.status === 'playing' && !room.game.pendingBet;
+    const currentTeamCanSend = myPlayer && myPlayer.team !== null && room.game.status === 'playing'
+      && !room.game.pendingBet && room.game.nextBetLevel && room.game.lastBetTeam !== myPlayer.team;
     const isBetTarget = myPlayer && myPlayer.team !== null && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;
 
     elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.team !== room.game.tumboTeam);
     elements.envitePanel.classList.toggle('hidden', !currentTeamCanSend);
     elements.betResponsePanel.classList.toggle('hidden', !isBetTarget);
+
+    [elements.envite4Btn, elements.envite7Btn, elements.envite9Btn, elements.enviteChicoBtn].forEach((button) => {
+      button.classList.add('hidden');
+    });
+    const sendButtons = {
+      4: elements.envite4Btn,
+      7: elements.envite7Btn,
+      9: elements.envite9Btn,
+      'chico-fuera': elements.enviteChicoBtn
+    };
+    sendButtons[room.game.nextBetLevel]?.classList.remove('hidden');
+
+    [elements.betRaise4Btn, elements.betRaise7Btn, elements.betRaise9Btn, elements.betRaiseChicoBtn].forEach((button) => {
+      button?.classList.add('hidden');
+    });
+    const raiseButtons = {
+      4: elements.betRaise4Btn,
+      7: elements.betRaise7Btn,
+      9: elements.betRaise9Btn,
+      'chico-fuera': elements.betRaiseChicoBtn
+    };
+    if (isBetTarget) {
+      raiseButtons[room.game.nextBetLevel]?.classList.remove('hidden');
+    }
 
     if (room.game.pendingBet && isBetTarget) {
       const levelLabel = room.game.pendingBet.level === 'chico-fuera' ? 'chico fuera' : `${room.game.pendingBet.level}`;

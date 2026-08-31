@@ -133,7 +133,9 @@ function serializeRoom(room, viewerId = null) {
       tumboTeam: room.game.tumboTeam,
       pendingTumbo: room.game.pendingTumbo,
       challengeTeam: room.game.challengeTeam,
-      pendingBet: room.game.pendingBet
+      pendingBet: room.game.pendingBet,
+      nextBetLevel: room.game.nextBetLevel,
+      lastBetTeam: room.game.lastBetTeam
     } : null,
     teamCounts: {
       0: room.players.filter((player) => player.team === 0).length,
@@ -225,7 +227,9 @@ function startGame(room) {
     pendingTumbo: false,
     challengeTeam: null,
     pendingBet: null,
-    roundAward: { team: null, points: 0, chico: false }
+    roundAward: { team: null, points: 0, chico: false },
+    nextBetLevel: 4,
+    lastBetTeam: null
   };
 
   notifyRoom(room);
@@ -293,6 +297,8 @@ function awardStoneForRound(room, team) {
 
   room.game.handWins = { 0: 0, 1: 0 };
   room.game.roundAward = { team: null, points: 0, chico: false };
+  room.game.nextBetLevel = 4;
+  room.game.lastBetTeam = null;
   room.game.playedCards = [];
   room.game.round += 1;
 
@@ -541,7 +547,7 @@ io.on('connection', (socket) => {
 
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
-    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet || room.game.roundAward?.points > 0) return;
+    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.team === null) return;
@@ -551,6 +557,9 @@ io.on('connection', (socket) => {
     if (!validLevels.includes(value)) return;
 
     const betValue = value === 'chico-fuera' ? 'chico-fuera' : Number(value);
+    if (betValue !== room.game.nextBetLevel) return;
+    if (room.game.lastBetTeam === player.team) return;
+
     room.game.pendingBet = {
       challengerTeam: player.team,
       targetTeam: 1 - player.team,
@@ -579,7 +588,7 @@ io.on('connection', (socket) => {
     if (accept === 'raise' && level !== undefined) {
       const candidateLevel = level === 'chico-fuera' ? level : Number(level);
 
-      if (compareBetLevels(room.game.pendingBet.level, candidateLevel)) {
+      if (candidateLevel === room.game.nextBetLevel && compareBetLevels(room.game.pendingBet.level, candidateLevel)) {
         const previousChallenger = room.game.pendingBet.challengerTeam;
         const previousLevel = room.game.pendingBet.level;
         room.game.pendingBet = {
@@ -618,6 +627,7 @@ io.on('connection', (socket) => {
         message: `El envío se rechaza y se liquidará al terminar la ronda con valor ${awardedLevel}.`
       });
       room.game.pendingBet = null;
+      room.game.nextBetLevel = null;
       notifyRoom(room);
       return;
     }
@@ -629,6 +639,10 @@ io.on('connection', (socket) => {
       points: room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level),
       chico: room.game.pendingBet.level === 'chico-fuera'
     };
+    room.game.lastBetTeam = senderTeam;
+    room.game.nextBetLevel = room.game.pendingBet.level === 4 ? 7
+      : room.game.pendingBet.level === 7 ? 9
+        : room.game.pendingBet.level === 9 ? 'chico-fuera' : null;
 
     room.game.history.push({
       envio: true,
