@@ -578,6 +578,11 @@ io.on('connection', (socket) => {
     if (!player || player.team === null || player.role !== null || !['mandador', 'mandado'].includes(role)) return;
 
     player.role = role;
+
+    if (room.players.length === 4 && room.players.every((entry) => entry.team !== null && entry.role !== null)) {
+      startGame(room);
+    }
+
     notifyRoom(room);
   });
 
