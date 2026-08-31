@@ -519,7 +519,8 @@ io.on('connection', (socket) => {
 
     const leadSuit = room.game.playedCards[0]?.card?.suit;
     const hasLeadSuit = leadSuit && player.hand.some((entry) => entry.suit === leadSuit);
-    if (hasLeadSuit && card.suit !== leadSuit) {
+    const trumpSuit = room.game.visibleCard?.suit;
+    if (leadSuit === trumpSuit && hasLeadSuit && card.suit !== leadSuit) {
       socket.emit('join-error', `Debes seguir el palo ${leadSuit} si lo tienes.`);
       return;
     }
