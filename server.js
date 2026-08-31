@@ -14,6 +14,18 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const rooms = new Map();
 const suits = ['oros', 'copas', 'espadas', 'bastos'];
+const rankPriority = {
+  2: 10,
+  12: 9,
+  11: 8,
+  10: 7,
+  1: 6,
+  7: 5,
+  6: 4,
+  5: 3,
+  4: 2,
+  3: 1
+};
 const ranks = [
   { id: 1, label: '1', value: 1 },
   { id: 2, label: '2', value: 2 },
@@ -89,9 +101,6 @@ function getRoomBySocketId(socketId) {
 }
 
 function serializeRoom(room, viewerId = null) {
-  const isPlayer = room.players.some((player) => player.id === viewerId);
-  const isSpectator = room.spectators.some((spec) => spec.id === viewerId);
-
   return {
     code: room.code,
     ownerId: room.ownerId,
@@ -101,7 +110,7 @@ function serializeRoom(room, viewerId = null) {
       team: player.team,
       score: player.score,
       ready: player.ready,
-      hand: isPlayer || isSpectator ? player.hand : [],
+      hand: player.id === viewerId ? player.hand : [],
       seat: player.seat,
       isHost: player.id === room.ownerId
     })),
@@ -114,11 +123,16 @@ function serializeRoom(room, viewerId = null) {
       round: room.game.round,
       maxRounds: room.game.maxRounds,
       scores: room.game.scores,
+      chicos: room.game.chicos,
+      handWins: room.game.handWins,
       visibleCard: room.game.visibleCard,
       turnPlayerId: room.game.turnPlayerId,
       playedCards: room.game.playedCards,
       history: room.game.history,
-      trickWinner: room.game.trickWinner
+      trickWinner: room.game.trickWinner,
+      tumboTeam: room.game.tumboTeam,
+      pendingTumbo: room.game.pendingTumbo,
+      challengeTeam: room.game.challengeTeam
     } : null,
     teamCounts: {
       0: room.players.filter((player) => player.team === 0).length,
@@ -171,14 +185,55 @@ function startGame(room) {
     deck,
     visibleCard,
     scores: { 0: 0, 1: 0 },
+    chicos: { 0: 0, 1: 0 },
+    handWins: { 0: 0, 1: 0 },
     playedCards: [],
     history: [],
     trickWinner: null,
     turnPlayerId: activePlayers[0].id,
-    turnOrder: activePlayers.map((player) => player.id)
+    turnOrder: activePlayers.map((player) => player.id),
+    tumboTeam: null,
+    pendingTumbo: false,
+    challengeTeam: null
   };
 
   notifyRoom(room);
+}
+
+function compareCards(cardA, cardB, trumpSuit) {
+  const aTrump = cardA.suit === trumpSuit;
+  const bTrump = cardB.suit === trumpSuit;
+
+  if (aTrump && !bTrump) return 1;
+  if (!aTrump && bTrump) return -1;
+  if (aTrump && bTrump) {
+    return (rankPriority[cardA.rank] ?? 0) - (rankPriority[cardB.rank] ?? 0);
+  }
+  if (cardA.suit !== cardB.suit) return -1;
+  return (rankPriority[cardA.rank] ?? 0) - (rankPriority[cardB.rank] ?? 0);
+}
+
+function maybeAwardChico(room, team) {
+  const other = 1 - team;
+  room.game.handWins[team] += 1;
+
+  if (room.game.handWins[team] >= 2 && room.game.handWins[other] < 2) {
+    room.game.chicos[team] += 1;
+    room.game.handWins = { 0: 0, 1: 0 };
+    room.game.history.push({
+      chico: true,
+      team,
+      chicos: { ...room.game.chicos }
+    });
+
+    if (room.game.chicos[team] >= 3) {
+      room.game.status = 'finished';
+      room.game.finalWinner = team;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function resolveTrick(room) {
@@ -188,22 +243,13 @@ function resolveTrick(room) {
   const winnerEntry = played.reduce((winner, entry) => {
     const currentCard = entry.card;
     const winnerCard = winner.card;
-
-    const currTrump = currentCard.suit === trumpSuit;
-    const winTrump = winnerCard.suit === trumpSuit;
-
-    if (currTrump && !winTrump) return entry;
-    if (!currTrump && winTrump) return winner;
-    if (currTrump && winTrump) {
-      return currentCard.value > winnerCard.value ? entry : winner;
-    }
-    if (currentCard.suit !== winnerCard.suit) return winner;
-    return currentCard.value > winnerCard.value ? entry : winner;
+    const comparison = compareCards(currentCard, winnerCard, trumpSuit);
+    return comparison > 0 ? entry : winner;
   }, played[0]);
 
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
 
-  room.game.scores[winningTeam] += 1;
+  room.game.scores[winningTeam] += 2;
   room.game.history.push({
     trick: room.game.round,
     winnerTeam: winningTeam,
@@ -219,6 +265,25 @@ function resolveTrick(room) {
     playerId: winnerEntry.playerId,
     card: winnerEntry.card
   };
+
+  if (room.game.scores[winningTeam] >= 11 && room.game.scores[winningTeam] <= 12) {
+    room.game.tumboTeam = winningTeam;
+    room.game.status = 'tumbo';
+    room.game.pendingTumbo = true;
+  }
+
+  if (room.game.tumboTeam !== null && room.game.pendingTumbo === false) {
+    room.game.tumboTeam = null;
+  }
+
+  if (!room.game.pendingTumbo) {
+    room.game.handWins = room.game.handWins || { 0: 0, 1: 0 };
+    const finishedByChico = maybeAwardChico(room, winningTeam);
+    if (finishedByChico) {
+      notifyRoom(room);
+      return;
+    }
+  }
 
   room.game.playedCards = [];
   room.game.round += 1;
@@ -380,6 +445,44 @@ io.on('connection', (socket) => {
 
     const nextPlayer = room.players[(nextIndex + 1) % room.players.length];
     room.game.turnPlayerId = nextPlayer.id;
+    notifyRoom(room);
+  });
+
+  socket.on('tumbo-decision', ({ accept }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || !room.game || room.game.status !== 'tumbo') return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player) return;
+
+    const tumboTeam = room.game.tumboTeam;
+    if (player.team !== tumboTeam) return;
+
+    room.game.pendingTumbo = false;
+
+    if (accept === false) {
+      const otherTeam = 1 - tumboTeam;
+      room.game.scores[otherTeam] += 1;
+      room.game.tumboTeam = null;
+      room.game.status = 'playing';
+      room.game.history.push({
+        tumbo: false,
+        team: tumboTeam,
+        score: { ...room.game.scores }
+      });
+      notifyRoom(room);
+      return;
+    }
+
+    room.game.challengeTeam = tumboTeam;
+    room.game.status = 'playing';
+    room.game.tumboTeam = null;
+    room.game.pendingTumbo = false;
+    room.game.history.push({
+      tumbo: true,
+      team: tumboTeam,
+      message: 'El equipo en tumbo quiere jugar.'
+    });
     notifyRoom(room);
   });
 

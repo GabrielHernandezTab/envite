@@ -20,8 +20,12 @@ const elements = {
   resultText: document.getElementById('result-text'),
   playersGrid: document.getElementById('players-grid'),
   visibleCard: document.getElementById('visible-card'),
+  tableCards: document.getElementById('table-cards'),
   hand: document.getElementById('hand'),
-  turnIndicator: document.getElementById('turn-indicator')
+  turnIndicator: document.getElementById('turn-indicator'),
+  tumboPanel: document.getElementById('tumbo-panel'),
+  tumboYesBtn: document.getElementById('tumbo-yes-btn'),
+  tumboNoBtn: document.getElementById('tumbo-no-btn')
 };
 
 let myPlayerId = null;
@@ -32,6 +36,45 @@ function getTeamLabel(team) {
   if (team === 0) return 'Equipo A';
   if (team === 1) return 'Equipo B';
   return 'Sin equipo';
+}
+
+function getSuitMeta(suit) {
+  const map = {
+    oros: { short: 'O', symbol: '♦', className: 'red', label: 'oros' },
+    copas: { short: 'C', symbol: '♥', className: 'red', label: 'copas' },
+    espadas: { short: 'E', symbol: '♠', className: 'black', label: 'espadas' },
+    bastos: { short: 'B', symbol: '♣', className: 'black', label: 'bastos' }
+  };
+
+  return map[suit] || { short: '?', symbol: '?', className: 'black', label: suit };
+}
+
+function renderCardFace(card, compact = false) {
+  const meta = getSuitMeta(card?.suit || 'oros');
+  const el = document.createElement('div');
+  el.className = `card-face ${meta.className}`;
+
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  header.innerHTML = `<span class="card-number">${card?.label || '-'}</span><span class="card-suit-name">${meta.short}</span>`;
+
+  const symbol = document.createElement('div');
+  symbol.className = 'card-symbol';
+  symbol.textContent = meta.symbol;
+
+  const footer = document.createElement('div');
+  footer.className = 'card-footer';
+  footer.innerHTML = `<span class="card-suit-name">${meta.label}</span><span class="card-number">${card?.label || '-'}</span>`;
+
+  el.appendChild(header);
+  el.appendChild(symbol);
+  el.appendChild(footer);
+
+  if (compact) {
+    el.style.transform = 'scale(0.85)';
+  }
+
+  return el;
 }
 
 function cardText(card) {
@@ -54,13 +97,44 @@ function renderHand(hand, room) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'card-btn';
-    btn.textContent = cardText(card);
     btn.disabled = room?.game?.turnPlayerId !== myPlayerId || myRole !== 'player';
+    btn.appendChild(renderCardFace(card));
+
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
       socket.emit('play-card', { cardId: card.id });
     });
+
     elements.hand.appendChild(btn);
+  });
+}
+
+function renderTableCards(playedCards, players) {
+  elements.tableCards.innerHTML = '';
+
+  if (!Array.isArray(playedCards) || playedCards.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'table-card';
+    empty.textContent = 'No hay cartas sobre la mesa';
+    elements.tableCards.appendChild(empty);
+    return;
+  }
+
+  playedCards.forEach((entry) => {
+    const item = document.createElement('div');
+    item.className = 'table-card';
+
+    const player = players.find((p) => p.id === entry.playerId);
+    const mini = renderCardFace(entry.card, true);
+    mini.style.width = '50px';
+    mini.style.height = '72px';
+    mini.style.display = 'inline-block';
+
+    const label = document.createElement('div');
+    label.textContent = `${player?.name || 'Jugador'}: ${entry.card.label} de ${entry.card.suit}`;
+    item.appendChild(mini);
+    item.appendChild(label);
+    elements.tableCards.appendChild(item);
   });
 }
 
@@ -86,22 +160,42 @@ function renderPlayers(players, room) {
     handMini.className = 'hand-mini';
 
     if (Array.isArray(player.hand) && player.hand.length > 0) {
-      player.hand.forEach((card) => {
+      player.hand.forEach((cardEntry) => {
         const mini = document.createElement('span');
         mini.className = 'mini-card';
-        mini.textContent = `${card.label}`;
+        const meta = getSuitMeta(cardEntry.suit || 'oros');
+        mini.innerHTML = `<span>${cardEntry.label}</span><span>${meta.symbol}</span>`;
         handMini.appendChild(mini);
       });
     } else {
       const mini = document.createElement('span');
       mini.className = 'mini-card';
-      mini.textContent = 'Sin mano';
+      mini.textContent = player.id === myPlayerId ? 'Sin mano' : 'Oculta';
       handMini.appendChild(mini);
     }
 
     card.append(label, name, team, handMini);
     elements.playersGrid.appendChild(card);
   });
+}
+
+function renderVisibleCard(card) {
+  if (!card) {
+    elements.visibleCard.innerHTML = `
+      <div class="card-header"><span class="card-number">-</span><span class="card-suit-name">-</span></div>
+      <div class="card-symbol">-</div>
+      <div class="card-footer"><span class="card-suit-name">-</span><span class="card-number">-</span></div>
+    `;
+    return;
+  }
+
+  const meta = getSuitMeta(card.suit);
+  elements.visibleCard.className = `card-face ${meta.className}`;
+  elements.visibleCard.innerHTML = `
+    <div class="card-header"><span class="card-number">${card.label}</span><span class="card-suit-name">${meta.short}</span></div>
+    <div class="card-symbol">${meta.symbol}</div>
+    <div class="card-footer"><span class="card-suit-name">${meta.label}</span><span class="card-number">${card.label}</span></div>
+  `;
 }
 
 function updateRoom(room) {
@@ -117,11 +211,14 @@ function updateRoom(room) {
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myHand = myPlayer?.hand || [];
   renderHand(myHand, room);
+  renderTableCards(room.game?.playedCards || [], players);
   renderPlayers(players, room);
 
   if (room.game) {
-    elements.visibleCard.textContent = room.game.visibleCard ? `${room.game.visibleCard.label} de ${room.game.visibleCard.suit}` : '-';
-    elements.statusText.textContent = room.game.status === 'finished' ? 'Partida finalizada' : 'Partida en marcha';
+    renderVisibleCard(room.game.visibleCard);
+    const isTumbo = room.game.status === 'tumbo';
+    elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.team !== room.game.tumboTeam);
+    elements.statusText.textContent = room.game.status === 'finished' ? 'Partida finalizada' : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';
     elements.roundText.textContent = `Ronda ${Math.min(room.game.round, room.game.maxRounds)} de ${room.game.maxRounds}`;
 
     if (room.game.turnPlayerId === myPlayerId && myRole === 'player') {
@@ -140,6 +237,9 @@ function updateRoom(room) {
       } else {
         elements.resultText.textContent = `Resultado final: ${winner === 0 ? 'Equipo A' : 'Equipo B'} gana ${room.game.scores[0]} - ${room.game.scores[1]}`;
       }
+    } else if (room.game.status === 'tumbo') {
+      const team = room.game.tumboTeam === 0 ? 'Equipo A' : 'Equipo B';
+      elements.resultText.textContent = `${team} está en tumbo. Debe decidir si quiere jugar o no.`;
     } else if (room.players.length < 4) {
       elements.resultText.textContent = 'Esperando a que haya 4 jugadores para empezar.';
     } else if (room.players.some((player) => player.team === null)) {
@@ -148,7 +248,8 @@ function updateRoom(room) {
       elements.resultText.textContent = 'La partida ha empezado. Haz tu jugada.';
     }
   } else {
-    elements.visibleCard.textContent = '-';
+    renderVisibleCard(null);
+    elements.tumboPanel.classList.add('hidden');
     elements.statusText.textContent = 'Esperando jugadores';
     elements.roundText.textContent = 'Ronda 1 de 3';
     elements.resultText.textContent = room.players.length >= 4
@@ -224,6 +325,8 @@ elements.returnMenuBtn.addEventListener('click', () => {
 });
 elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { team: 0 }));
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));
+elements.tumboYesBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: true }));
+elements.tumboNoBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: false }));
 elements.closeRoomBtn.addEventListener('click', () => {
   socket.emit('close-room');
 });
