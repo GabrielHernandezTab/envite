@@ -351,6 +351,49 @@ function awardStoneForRound(room, team) {
   room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
 }
 
+function applyRoundForfeit(room, abandoningTeam, reason) {
+  const rewardedTeam = 1 - abandoningTeam;
+  const activeBet = room.game.pendingBet || null;
+  const overridePoints = room.game.roundAward?.points > 0 ? room.game.roundAward.points : null;
+  const awardedPoints = activeBet
+    ? (activeBet.level === 'chico-fuera' ? 1 : Number(activeBet.level))
+    : overridePoints ?? 2;
+  const chicoAwarded = activeBet?.level === 'chico-fuera' || room.game.roundAward?.chico || false;
+
+  room.game.scores[rewardedTeam] = Math.min((room.game.scores[rewardedTeam] || 0) + awardedPoints, 11);
+  if (chicoAwarded) {
+    room.game.chicos[rewardedTeam] = Math.min((room.game.chicos[rewardedTeam] || 0) + 1, 3);
+  }
+
+  room.game.history.push({
+    round: room.game.round,
+    forfeit: true,
+    team: abandoningTeam,
+    rewardedTeam,
+    points: awardedPoints,
+    envite: Boolean(activeBet || overridePoints),
+    reason,
+    scoreAfter: { ...room.game.scores },
+    chicoAwarded,
+    message: activeBet || overridePoints
+      ? `El equipo ${abandoningTeam === 0 ? 'A' : 'B'} abandona la ronda y el equipo ${rewardedTeam === 0 ? 'A' : 'B'} recibe ${awardedPoints} puntos por envío.`
+      : `El equipo ${abandoningTeam === 0 ? 'A' : 'B'} abandona la ronda y el equipo ${rewardedTeam === 0 ? 'A' : 'B'} recibe 2 puntos.`
+  });
+
+  if (room.game.chicos[rewardedTeam] >= 3) {
+    room.game.status = 'finished';
+    room.game.finalWinner = rewardedTeam;
+    return true;
+  }
+
+  room.game.pendingBet = null;
+  room.game.roundAward = { team: rewardedTeam, points: awardedPoints, chico: chicoAwarded };
+  room.game.nextBetLevel = 4;
+  room.game.lastBetTeam = null;
+  room.game.betUsedThisRound = false;
+  return false;
+}
+
 function reshuffleRound(room) {
   const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
   const deck = createDeck();
@@ -380,6 +423,7 @@ function reshuffleRound(room) {
   room.game.history.push({
     round: room.game.round,
     reshuffled: true,
+    reason: 'abandono',
     message: 'La ronda se ha abandonado y se han repartido nuevas cartas.'
   });
 }
@@ -666,7 +710,15 @@ io.on('connection', (socket) => {
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player) return;
 
+    const abandoningTeam = player.team;
+    if (abandoningTeam === null || abandoningTeam === undefined) return;
+
+    const hadFinished = applyRoundForfeit(room, abandoningTeam, 'abandono');
     reshuffleRound(room);
+    if (hadFinished) {
+      notifyRoom(room);
+      return;
+    }
     notifyRoom(room);
   });
 
@@ -677,13 +729,22 @@ io.on('connection', (socket) => {
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.role !== 'mandador') return;
 
+    const abandoningTeam = player.team;
+    if (abandoningTeam === null || abandoningTeam === undefined) return;
+
+    const hadFinished = applyRoundForfeit(room, abandoningTeam, 'renuncia');
     reshuffleRound(room);
     room.game.history.push({
       round: room.game.round,
       renounced: true,
       player: player.name,
+      team: abandoningTeam,
       message: 'El mandador ha renunciado y se han repartido nuevas cartas.'
     });
+    if (hadFinished) {
+      notifyRoom(room);
+      return;
+    }
     notifyRoom(room);
   });
 
@@ -761,7 +822,7 @@ io.on('connection', (socket) => {
 
     if (accept === false) {
       const rejectedBet = room.game.pendingBet;
-      const winningTeam = rejectedBet.targetTeam;
+      const winningTeam = rejectedBet.challengerTeam;
       const awardedLevel = rejectedBet.previousLevel ?? rejectedBet.level;
       room.game.roundAward = {
         team: winningTeam,
@@ -773,7 +834,7 @@ io.on('connection', (socket) => {
         team: winningTeam,
         rejectedBy: player.team,
         level: awardedLevel,
-        message: `El envío se rechaza y se liquidará al terminar la ronda con valor ${awardedLevel}.`
+        message: `El envío se rechaza y el equipo ${winningTeam === 0 ? 'A' : 'B'} gana los puntos del valor ${awardedLevel}.`
       });
       room.game.pendingBet = null;
       room.game.nextBetLevel = null;
