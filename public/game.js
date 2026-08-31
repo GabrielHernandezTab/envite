@@ -30,6 +30,7 @@ const elements = {
   tableCards: document.getElementById('table-cards'),
   hand: document.getElementById('hand'),
   handPanel: document.getElementById('hand-panel'),
+  historyList: document.getElementById('history-list'),
   turnIndicator: document.getElementById('turn-indicator'),
   tumboPanel: document.getElementById('tumbo-panel'),
   tumboYesBtn: document.getElementById('tumbo-yes-btn'),
@@ -62,13 +63,13 @@ function getTeamLabel(team) {
 
 function getSuitMeta(suit) {
   const map = {
-    oros: { short: 'O', symbol: '♦', className: 'red', label: 'oros' },
-    copas: { short: 'C', symbol: '♥', className: 'red', label: 'copas' },
-    espadas: { short: 'E', symbol: '♠', className: 'black', label: 'espadas' },
-    bastos: { short: 'B', symbol: '♣', className: 'black', label: 'bastos' }
+    oros: { short: 'O', symbol: '●', symbolClass: 'oros', className: 'gold-suit', label: 'oros' },
+    copas: { short: 'C', symbol: '∪', symbolClass: 'copas', className: 'red-suit', label: 'copas' },
+    espadas: { short: 'E', symbol: '✦', symbolClass: 'espadas', className: 'steel-suit', label: 'espadas' },
+    bastos: { short: 'B', symbol: '✣', symbolClass: 'bastos', className: 'wood-suit', label: 'bastos' }
   };
 
-  return map[suit] || { short: '?', symbol: '?', className: 'black', label: suit };
+  return map[suit] || { short: '?', symbol: '?', symbolClass: 'unknown', className: 'black', label: suit };
 }
 
 function renderCardFace(card, compact = false) {
@@ -81,8 +82,29 @@ function renderCardFace(card, compact = false) {
   header.innerHTML = `<span class="card-number">${card?.label || '-'}</span><span class="card-suit-name">${meta.short}</span>`;
 
   const symbol = document.createElement('div');
-  symbol.className = 'card-symbol';
-  symbol.textContent = meta.symbol;
+  symbol.className = `card-symbol suit-symbol ${meta.symbolClass}`;
+
+  if (card && card.rank >= 1 && card.rank <= 7) {
+    symbol.classList.add(`pip-count-${card.rank}`);
+    for (let index = 0; index < card.rank; index += 1) {
+      const pip = document.createElement('span');
+      pip.className = 'card-pip';
+      pip.textContent = meta.symbol;
+      symbol.appendChild(pip);
+    }
+  } else if (card && card.rank >= 10) {
+    symbol.classList.add('court-card');
+    const figure = document.createElement('span');
+    figure.className = `court-figure rank-${card.rank}`;
+    figure.innerHTML = '<span class="figure-head"></span><span class="figure-body"></span><span class="figure-weapon"></span>';
+    symbol.appendChild(figure);
+    const title = document.createElement('small');
+    title.className = 'court-title';
+    title.textContent = card.rank === 10 ? 'Sota' : card.rank === 11 ? 'Caballo' : 'Rey';
+    symbol.appendChild(title);
+  } else {
+    symbol.textContent = meta.symbol;
+  }
 
   const footer = document.createElement('div');
   footer.className = 'card-footer';
@@ -275,13 +297,35 @@ function renderVisibleCard(card) {
     return;
   }
 
-  const meta = getSuitMeta(card.suit);
-  elements.visibleCard.className = `card-face ${meta.className}`;
-  elements.visibleCard.innerHTML = `
-    <div class="card-header"><span class="card-number">${card.label}</span><span class="card-suit-name">${meta.short}</span></div>
-    <div class="card-symbol">${meta.symbol}</div>
-    <div class="card-footer"><span class="card-suit-name">${meta.label}</span><span class="card-number">${card.label}</span></div>
-  `;
+  const rendered = renderCardFace(card);
+  elements.visibleCard.className = rendered.className;
+  elements.visibleCard.replaceChildren(...rendered.childNodes);
+}
+
+function renderHistory(history, players) {
+  elements.historyList.innerHTML = '';
+  const handHistory = (history || []).filter((entry) => entry.trick && entry.winnerTeam !== undefined);
+
+  if (!handHistory.length) {
+    const empty = document.createElement('div');
+    empty.className = 'history-empty';
+    empty.textContent = 'Todavía no se ha jugado ninguna mano.';
+    elements.historyList.appendChild(empty);
+    return;
+  }
+
+  handHistory.slice(-9).forEach((entry) => {
+    const item = document.createElement('div');
+    item.className = `history-item team-${entry.winnerTeam === 0 ? 'a' : 'b'}`;
+    const winnerName = entry.winnerPlayer || players.find((player) => player.team === entry.winnerTeam)?.name || 'Equipo';
+    const handNumber = entry.handWins?.[0] + entry.handWins?.[1] || 1;
+    item.innerHTML = `
+      <strong>Mano ${handNumber}</strong>
+      <span>${winnerName} · Equipo ${entry.winnerTeam === 0 ? 'A' : 'B'}</span>
+      <small>${entry.scoreAfter?.[0] ?? 0} - ${entry.scoreAfter?.[1] ?? 0} puntos</small>
+    `;
+    elements.historyList.appendChild(item);
+  });
 }
 
 function updateRoom(room) {
@@ -302,6 +346,7 @@ function updateRoom(room) {
   renderHand(myHand, room);
   renderTableCards(room.game?.playedCards || [], players);
   renderPlayers(players, room);
+  renderHistory(room.game?.history || [], players);
 
   if (room.game) {
     renderVisibleCard(room.game.visibleCard);
@@ -315,7 +360,7 @@ function updateRoom(room) {
 
     if (room.game.pendingBet && isBetTarget) {
       const levelLabel = room.game.pendingBet.level === 'chico-fuera' ? 'chico fuera' : `${room.game.pendingBet.level}`;
-      elements.betResponseText.textContent = `Han enviado ${levelLabel}. ¿aceptas?`;
+      elements.betResponseText.textContent = `Envío a ${levelLabel}. ¿Quieres jugar, subirlo o rechazarlo?`;
     }
 
     elements.statusText.textContent = room.game.status === 'finished' ? 'Partida finalizada' : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';

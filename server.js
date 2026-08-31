@@ -225,7 +225,7 @@ function startGame(room) {
     pendingTumbo: false,
     challengeTeam: null,
     pendingBet: null,
-    roundAward: { team: null, points: 1, chico: false }
+    roundAward: { team: null, points: 0, chico: false }
   };
 
   notifyRoom(room);
@@ -274,23 +274,25 @@ function compareBetLevels(currentLevel, candidateLevel) {
 }
 
 function awardStoneForRound(room, team) {
-  const roundAward = room.game.roundAward || { team: null, points: 1, chico: false };
-  const points = roundAward.team === team ? roundAward.points : 1;
+  const roundAward = room.game.roundAward || { team: null, points: 0, chico: false };
+  const points = roundAward.points > 0 && (roundAward.team === null || roundAward.team === team)
+    ? roundAward.points
+    : 0;
   room.game.scores[team] = Math.min((room.game.scores[team] || 0) + points, 11);
-  if (roundAward.team === team && roundAward.chico) {
+  if (roundAward.points > 0 && (roundAward.team === null || roundAward.team === team) && roundAward.chico) {
     room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
   }
   room.game.history.push({
     roundWinner: team,
     reason: '2 de 3 manos',
     pointsAwarded: points,
-    chicoAwarded: roundAward.team === team && roundAward.chico,
+    chicoAwarded: roundAward.points > 0 && (roundAward.team === null || roundAward.team === team) && roundAward.chico,
     scoreAfter: { ...room.game.scores },
     handWins: { ...room.game.handWins }
   });
 
   room.game.handWins = { 0: 0, 1: 0 };
-  room.game.roundAward = { team: null, points: 1, chico: false };
+  room.game.roundAward = { team: null, points: 0, chico: false };
   room.game.playedCards = [];
   room.game.round += 1;
 
@@ -302,13 +304,13 @@ function awardStoneForRound(room, team) {
     return;
   }
 
-  room.game.visibleCard = createDeck().pop();
   const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
   room.players.forEach((player) => {
     player.hand = [];
   });
 
   const deck = createDeck();
+  room.game.visibleCard = deck.pop();
   for (let i = 0; i < 3; i += 1) {
     orderedPlayers.forEach((player) => {
       player.hand.push(deck.pop());
@@ -335,9 +337,14 @@ function resolveTrick(room) {
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
   room.game.handWins[winningTeam] = (room.game.handWins[winningTeam] || 0) + 1;
 
+  if (!room.game.roundAward?.points) {
+    room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + 2, 11);
+  }
+
   room.game.history.push({
     trick: room.game.round,
     winnerTeam: winningTeam,
+    winnerPlayer: room.players.find((player) => player.id === winnerEntry.playerId)?.name,
     handWins: { ...room.game.handWins },
     scoreAfter: { ...room.game.scores },
     played: played.map((entry) => ({
@@ -538,7 +545,7 @@ io.on('connection', (socket) => {
 
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
-    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet) return;
+    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet || room.game.roundAward?.points > 0) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.team === null) return;
@@ -552,6 +559,7 @@ io.on('connection', (socket) => {
       challengerTeam: player.team,
       targetTeam: 1 - player.team,
       level: betValue,
+      previousLevel: null,
       accepted: null
     };
 
@@ -577,10 +585,12 @@ io.on('connection', (socket) => {
 
       if (compareBetLevels(room.game.pendingBet.level, candidateLevel)) {
         const previousChallenger = room.game.pendingBet.challengerTeam;
+        const previousLevel = room.game.pendingBet.level;
         room.game.pendingBet = {
           challengerTeam: player.team,
           targetTeam: previousChallenger,
           level: candidateLevel,
+          previousLevel,
           accepted: null
         };
         room.game.history.push({
@@ -596,13 +606,20 @@ io.on('connection', (socket) => {
     }
 
     if (accept === false) {
-      const senderTeam = room.game.pendingBet.challengerTeam;
-      room.game.roundAward = { team: senderTeam, points: 2, chico: false };
+      const rejectedBet = room.game.pendingBet;
+      const winningTeam = rejectedBet.targetTeam;
+      const awardedLevel = rejectedBet.previousLevel ?? rejectedBet.level;
+      room.game.roundAward = {
+        team: winningTeam,
+        points: awardedLevel === 'chico-fuera' ? 1 : Number(awardedLevel),
+        chico: awardedLevel === 'chico-fuera'
+      };
       room.game.history.push({
         envio: false,
-        team: senderTeam,
+        team: winningTeam,
         rejectedBy: player.team,
-        message: 'El envío se rechaza y se liquidará al terminar la ronda.'
+        level: awardedLevel,
+        message: `El envío se rechaza y se liquidará al terminar la ronda con valor ${awardedLevel}.`
       });
       room.game.pendingBet = null;
       notifyRoom(room);
@@ -612,7 +629,7 @@ io.on('connection', (socket) => {
     room.game.pendingBet.accepted = true;
     const senderTeam = room.game.pendingBet.challengerTeam;
     room.game.roundAward = {
-      team: senderTeam,
+      team: null,
       points: room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level),
       chico: room.game.pendingBet.level === 'chico-fuera'
     };

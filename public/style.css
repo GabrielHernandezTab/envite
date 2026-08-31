@@ -367,6 +367,51 @@ input {
   gap: 16px;
 }
 
+.history-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-help,
+.history-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.history-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.history-item {
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--muted);
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+}
+
+.history-item.team-a { border-left-color: var(--good); }
+.history-item.team-b { border-left-color: var(--bad); }
+
+.history-item span,
+.history-item small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .visible-card .tag {
   color: var(--muted);
   text-transform: uppercase;
@@ -579,6 +624,22 @@ input {
   color: var(--black-suit);
 }
 
+.card-face.gold-suit {
+  color: #b97808;
+}
+
+.card-face.red-suit {
+  color: #bd3046;
+}
+
+.card-face.steel-suit {
+  color: #394b5b;
+}
+
+.card-face.wood-suit {
+  color: #86512d;
+}
+
 .card-face .card-header,
 .card-face .card-footer {
   display: flex;
@@ -590,10 +651,120 @@ input {
 }
 
 .card-face .card-symbol {
-  font-size: clamp(1.3rem, 2vw, 2rem);
+  font-size: clamp(1rem, 1.6vw, 1.5rem);
   line-height: 1;
   display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 1fr;
+  align-items: center;
+  justify-items: center;
+  gap: 1px 3px;
+  font-family: Georgia, serif;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.08);
+}
+
+.card-pip {
+  display: grid;
   place-items: center;
+  min-width: 18px;
+  min-height: 18px;
+}
+
+.card-symbol.pip-count-1,
+.card-symbol.pip-count-3 {
+  grid-template-columns: 1fr;
+}
+
+.card-symbol.pip-count-5,
+.card-symbol.pip-count-7 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.card-symbol.pip-count-6 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.court-card {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 2px;
+}
+
+.court-figure {
+  position: relative;
+  width: 54px;
+  height: 70px;
+  display: block;
+  filter: drop-shadow(0 2px 1px rgba(0,0,0,0.2));
+}
+
+.figure-head,
+.figure-body,
+.figure-weapon {
+  position: absolute;
+  display: block;
+}
+
+.figure-head {
+  width: 18px;
+  height: 18px;
+  left: 18px;
+  top: 3px;
+  border-radius: 50%;
+  background: #e4ae7a;
+  border: 2px solid currentColor;
+}
+
+.figure-body {
+  width: 34px;
+  height: 40px;
+  left: 10px;
+  top: 22px;
+  border-radius: 45% 45% 18% 18%;
+  background: currentColor;
+  border: 3px solid rgba(35, 45, 58, 0.7);
+}
+
+.figure-weapon {
+  width: 4px;
+  height: 56px;
+  right: 1px;
+  top: 7px;
+  background: #c8d5dc;
+  border: 1px solid #53636d;
+  transform: rotate(20deg);
+  transform-origin: bottom;
+}
+
+.court-figure.rank-10 .figure-body { background: #ba3047; }
+.court-figure.rank-11 .figure-body { background: #d49a27; }
+.court-figure.rank-12 .figure-body { background: #356da0; }
+
+.court-title {
+  font-family: Arial, sans-serif;
+  font-size: 0.52rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.card-face .suit-symbol.oros {
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  text-shadow: 0 1px 0 #f7d56c, 0 3px 5px rgba(107, 66, 0, 0.25);
+}
+
+.card-face .suit-symbol.copas {
+  font-size: clamp(2rem, 3.2vw, 3rem);
+  transform: scaleX(1.25) translateY(-2px);
+}
+
+.card-face .suit-symbol.espadas {
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  transform: rotate(45deg);
+}
+
+.card-face .suit-symbol.bastos {
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
 }
 
 .card-face .card-number {
