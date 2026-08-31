@@ -36,7 +36,6 @@ const elements = {
   tumboYesBtn: document.getElementById('tumbo-yes-btn'),
   tumboNoBtn: document.getElementById('tumbo-no-btn'),
   envitePanel: document.getElementById('envite-panel'),
-  envite2Btn: document.getElementById('envite-2-btn'),
   envite4Btn: document.getElementById('envite-4-btn'),
   envite7Btn: document.getElementById('envite-7-btn'),
   envite9Btn: document.getElementById('envite-9-btn'),
@@ -63,10 +62,10 @@ function getTeamLabel(team) {
 
 function getSuitMeta(suit) {
   const map = {
-    oros: { short: 'O', symbol: '●', symbolClass: 'oros', className: 'gold-suit', label: 'oros' },
-    copas: { short: 'C', symbol: '∪', symbolClass: 'copas', className: 'red-suit', label: 'copas' },
-    espadas: { short: 'E', symbol: '✦', symbolClass: 'espadas', className: 'steel-suit', label: 'espadas' },
-    bastos: { short: 'B', symbol: '✣', symbolClass: 'bastos', className: 'wood-suit', label: 'bastos' }
+    oros: { short: 'O', symbol: '♦', symbolClass: 'oros', className: 'red', label: 'oros' },
+    copas: { short: 'C', symbol: '♥', symbolClass: 'copas', className: 'red', label: 'copas' },
+    espadas: { short: 'E', symbol: '♠', symbolClass: 'espadas', className: 'black', label: 'espadas' },
+    bastos: { short: 'B', symbol: '♣', symbolClass: 'bastos', className: 'black', label: 'bastos' }
   };
 
   return map[suit] || { short: '?', symbol: '?', symbolClass: 'unknown', className: 'black', label: suit };
@@ -472,7 +471,6 @@ elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { t
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));
 elements.tumboYesBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: true }));
 elements.tumboNoBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: false }));
-elements.envite2Btn.addEventListener('click', () => socket.emit('send-bet', { level: 2 }));
 elements.envite4Btn.addEventListener('click', () => socket.emit('send-bet', { level: 4 }));
 elements.envite7Btn.addEventListener('click', () => socket.emit('send-bet', { level: 7 }));
 elements.envite9Btn.addEventListener('click', () => socket.emit('send-bet', { level: 9 }));

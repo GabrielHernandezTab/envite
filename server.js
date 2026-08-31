@@ -275,9 +275,9 @@ function compareBetLevels(currentLevel, candidateLevel) {
 
 function awardStoneForRound(room, team) {
   const roundAward = room.game.roundAward || { team: null, points: 0, chico: false };
-  const points = roundAward.points > 0 && (roundAward.team === null || roundAward.team === team)
-    ? roundAward.points
-    : 0;
+  const points = roundAward.points > 0
+    ? (roundAward.team === null || roundAward.team === team ? roundAward.points : 0)
+    : 2;
   room.game.scores[team] = Math.min((room.game.scores[team] || 0) + points, 11);
   if (roundAward.points > 0 && (roundAward.team === null || roundAward.team === team) && roundAward.chico) {
     room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
@@ -336,10 +336,6 @@ function resolveTrick(room) {
 
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
   room.game.handWins[winningTeam] = (room.game.handWins[winningTeam] || 0) + 1;
-
-  if (!room.game.roundAward?.points) {
-    room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + 2, 11);
-  }
 
   room.game.history.push({
     trick: room.game.round,
@@ -551,7 +547,7 @@ io.on('connection', (socket) => {
     if (!player || player.team === null) return;
 
     const value = String(level).toLowerCase();
-    const validLevels = ['2', '4', '7', '9', 'chico-fuera'];
+    const validLevels = ['4', '7', '9', 'chico-fuera'];
     if (!validLevels.includes(value)) return;
 
     const betValue = value === 'chico-fuera' ? 'chico-fuera' : Number(value);
