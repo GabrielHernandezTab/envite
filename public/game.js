@@ -78,29 +78,19 @@ function renderCardFace(card, compact = false) {
 
   const header = document.createElement('div');
   header.className = 'card-header';
-  header.innerHTML = `<span class="card-number">${card?.label || '-'}</span><span class="card-suit-name">${meta.short}</span>`;
+  header.innerHTML = `<span class="card-number">${card?.label || '-'}</span>`;
 
   const symbol = document.createElement('div');
   symbol.className = `card-symbol suit-symbol ${meta.symbolClass}`;
-
-  const rankLabel = document.createElement('strong');
-  rankLabel.className = 'card-rank-label';
-  rankLabel.textContent = card?.label || '-';
-  symbol.appendChild(rankLabel);
 
   const suitIcon = document.createElement('span');
   suitIcon.className = 'suit-icon';
   suitIcon.textContent = meta.symbol;
   symbol.appendChild(suitIcon);
 
-  const suitLabel = document.createElement('small');
-  suitLabel.className = 'suit-label';
-  suitLabel.textContent = meta.label;
-  symbol.appendChild(suitLabel);
-
   const footer = document.createElement('div');
   footer.className = 'card-footer';
-  footer.innerHTML = `<span class="card-suit-name">${meta.label}</span><span class="card-number">${card?.label || '-'}</span>`;
+  footer.innerHTML = `<span class="card-suit-name">${meta.label}</span>`;
 
   el.appendChild(header);
   el.appendChild(symbol);
@@ -282,9 +272,9 @@ function renderPlayers(players, room) {
 function renderVisibleCard(card) {
   if (!card) {
     elements.visibleCard.innerHTML = `
-      <div class="card-header"><span class="card-number">-</span><span class="card-suit-name">-</span></div>
+      <div class="card-header"><span class="card-number">-</span></div>
       <div class="card-symbol">-</div>
-      <div class="card-footer"><span class="card-suit-name">-</span><span class="card-number">-</span></div>
+      <div class="card-footer"><span class="card-suit-name">-</span></div>
     `;
     return;
   }

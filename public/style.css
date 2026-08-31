@@ -643,11 +643,18 @@ input {
 .card-face .card-header,
 .card-face .card-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   font-size: 0.75rem;
   font-weight: 800;
   padding: 0 2px;
+}
+
+.card-face .card-header {
+  justify-content: flex-start;
+}
+
+.card-face .card-footer {
+  justify-content: center;
 }
 
 .card-face .card-symbol {
@@ -661,22 +668,9 @@ input {
   text-shadow: 0 2px 0 rgba(0,0,0,0.08);
 }
 
-.card-rank-label {
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 0.9;
-}
-
 .suit-icon {
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1;
-}
-
-.suit-label {
-  font-family: Arial, sans-serif;
-  font-size: 0.68rem;
-  line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .card-face .suit-symbol.oros {
