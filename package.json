@@ -1,0 +1,13 @@
+{
+  "name": "envite-canario-2v2",
+  "version": "1.0.0",
+  "description": "Envite Canario 2v2 online sin LAN",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

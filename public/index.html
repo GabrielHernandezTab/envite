@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Envite Canario 2v2</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Multijugador</p>
+          <h1>Envite Canario 2v2</h1>
+        </div>
+        <div class="server-state">
+          <span id="room-code-badge">Sala: --</span>
+        </div>
+      </header>
+
+      <main class="panel">
+        <section class="setup-box" id="setup-box">
+          <div class="field">
+            <label for="player-name">Tu nombre</label>
+            <input id="player-name" maxlength="18" value="Jugador" />
+          </div>
+
+          <div class="field">
+            <label for="room-code">Código de la sala</label>
+            <input id="room-code" maxlength="5" placeholder="ABCDE" />
+          </div>
+
+          <div class="buttons-row">
+            <button id="create-room-btn">Crear sala</button>
+            <button id="join-room-btn" class="secondary">Unirse</button>
+          </div>
+        </section>
+
+        <section class="game-box hidden" id="game-box">
+          <div class="status-row">
+            <div>
+              <p class="eyebrow">Estado</p>
+              <h2 id="status-text">Esperando jugadores</h2>
+            </div>
+            <button id="reset-btn" class="secondary">Reiniciar</button>
+          </div>
+
+          <div class="scoreboard">
+            <div class="team team-a">
+              <span>Equipo A</span>
+              <strong id="score-a">0</strong>
+            </div>
+            <div class="team team-b">
+              <span>Equipo B</span>
+              <strong id="score-b">0</strong>
+            </div>
+          </div>
+
+          <div class="round-panel">
+            <p id="round-text">Ronda 1 de 5</p>
+            <p id="result-text">Espera a que todos elijan su valor.</p>
+          </div>
+
+          <div class="players-grid" id="players-grid"></div>
+
+          <div class="choices-box">
+            <p>Elige un número</p>
+            <div class="choices" id="choices"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/game.js"></script>
+  </body>
+</html>
