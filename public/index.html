@@ -21,13 +21,6 @@
       <main class="panel">
         <section class="setup-box" id="setup-box">
           <div class="field">
-          <div class="hand-panel">
-            <div class="hand-header">
-              <p>Tu mano</p>
-              <span id="turn-indicator">Esperando turno</span>
-            </div>
-            <div class="hand" id="hand"></div>
-          </div>
             <label for="player-name">Tu nombre</label>
             <input id="player-name" maxlength="18" value="Jugador" />
           </div>
@@ -36,12 +29,6 @@
             <label for="room-code">Código de la sala</label>
             <input id="room-code" maxlength="5" placeholder="ABCDE" />
           </div>
-            <div class="action-row">
-              <button id="bet-raise-4-btn" class="secondary">Subir a 4</button>
-              <button id="bet-raise-7-btn" class="secondary">Subir a 7</button>
-              <button id="bet-raise-9-btn" class="secondary">Subir a 9</button>
-              <button id="bet-raise-chico-btn" class="secondary">Subir a chico</button>
-            </div>
 
           <div class="buttons-row">
             <button id="create-room-btn">Crear sala</button>
@@ -122,36 +109,53 @@
               <button id="bet-accept-btn">Aceptar</button>
               <button id="bet-reject-btn" class="danger">No aceptar</button>
             </div>
+            <div class="action-row">
+              <button id="bet-raise-4-btn" class="secondary">Subir a 4</button>
+              <button id="bet-raise-7-btn" class="secondary">Subir a 7</button>
+              <button id="bet-raise-9-btn" class="secondary">Subir a 9</button>
+              <button id="bet-raise-chico-btn" class="secondary">Subir a chico</button>
+            </div>
           </div>
 
-          <div class="casino-table-wrap">
-            <div class="casino-table">
-              <div class="table-surface">
-                <div id="seat-positions" class="seat-positions"></div>
-                <div class="center-area">
-                  <div class="visible-card">
-                    <span class="tag">Carta visible</span>
-                    <div id="visible-card" class="card-face red">
-                      <div class="card-header">
-                        <span class="card-number">-</span>
-                        <span class="card-suit-name">-</span>
-                      </div>
-                      <div class="card-symbol">-</div>
-                      <div class="card-footer">
-                        <span class="card-suit-name">-</span>
-                        <span class="card-number">-</span>
+          <div class="play-area">
+            <div class="casino-table-wrap">
+              <div class="casino-table">
+                <div class="table-surface">
+                  <div id="seat-positions" class="seat-positions"></div>
+                  <div class="center-area">
+                    <div class="visible-card">
+                      <span class="tag">Carta visible</span>
+                      <div id="visible-card" class="card-face red">
+                        <div class="card-header">
+                          <span class="card-number">-</span>
+                          <span class="card-suit-name">-</span>
+                        </div>
+                        <div class="card-symbol">-</div>
+                        <div class="card-footer">
+                          <span class="card-suit-name">-</span>
+                          <span class="card-number">-</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+            <div class="play-side">
+              <div class="table-info">
+                <div class="table-area">
+                  <div class="tag">Cartas sobre la mesa</div>
+                  <div id="table-cards" class="table-cards"></div>
+                </div>
+              </div>
 
-          <div class="table-info">
-            <div class="table-area">
-              <div class="tag">Cartas sobre la mesa</div>
-              <div id="table-cards" class="table-cards"></div>
+              <div class="hand-panel hidden" id="hand-panel">
+                <div class="hand-header">
+                  <p>Tu mano</p>
+                  <span id="turn-indicator">Esperando turno</span>
+                </div>
+                <div class="hand" id="hand"></div>
+              </div>
             </div>
           </div>
 
@@ -184,13 +188,6 @@
 
           <div class="players-grid" id="players-grid"></div>
 
-          <div class="hand-panel">
-            <div class="hand-header">
-              <p>Tu mano</p>
-              <span id="turn-indicator">Esperando turno</span>
-            </div>
-            <div class="hand" id="hand"></div>
-          </div>
         </section>
       </main>
     </div>

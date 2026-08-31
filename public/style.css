@@ -261,6 +261,20 @@ input {
   place-items: center;
 }
 
+.play-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.75fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.play-side {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  min-width: 0;
+}
+
 .casino-table {
   width: min(100%, 820px);
   padding: 20px;
@@ -640,6 +654,10 @@ input {
 
   .panel {
     padding: 16px;
+  }
+
+  .play-area {
+    grid-template-columns: 1fr;
   }
 
   .casino-table {

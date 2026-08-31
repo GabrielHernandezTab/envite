@@ -29,6 +29,7 @@ const elements = {
   visibleCard: document.getElementById('visible-card'),
   tableCards: document.getElementById('table-cards'),
   hand: document.getElementById('hand'),
+  handPanel: document.getElementById('hand-panel'),
   turnIndicator: document.getElementById('turn-indicator'),
   tumboPanel: document.getElementById('tumbo-panel'),
   tumboYesBtn: document.getElementById('tumbo-yes-btn'),
@@ -297,6 +298,7 @@ function updateRoom(room) {
   const players = room.players || [];
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myHand = myPlayer?.hand || [];
+  elements.handPanel.classList.toggle('hidden', !room.game);
   renderHand(myHand, room);
   renderTableCards(room.game?.playedCards || [], players);
   renderPlayers(players, room);

@@ -224,7 +224,8 @@ function startGame(room) {
     tumboTeam: null,
     pendingTumbo: false,
     challengeTeam: null,
-    pendingBet: null
+    pendingBet: null,
+    roundAward: { team: null, points: 1, chico: false }
   };
 
   notifyRoom(room);
@@ -273,15 +274,23 @@ function compareBetLevels(currentLevel, candidateLevel) {
 }
 
 function awardStoneForRound(room, team) {
-  room.game.scores[team] = Math.min((room.game.scores[team] || 0) + 1, 11);
+  const roundAward = room.game.roundAward || { team: null, points: 1, chico: false };
+  const points = roundAward.team === team ? roundAward.points : 1;
+  room.game.scores[team] = Math.min((room.game.scores[team] || 0) + points, 11);
+  if (roundAward.team === team && roundAward.chico) {
+    room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
+  }
   room.game.history.push({
     roundWinner: team,
     reason: '2 de 3 manos',
+    pointsAwarded: points,
+    chicoAwarded: roundAward.team === team && roundAward.chico,
     scoreAfter: { ...room.game.scores },
     handWins: { ...room.game.handWins }
   });
 
   room.game.handWins = { 0: 0, 1: 0 };
+  room.game.roundAward = { team: null, points: 1, chico: false };
   room.game.playedCards = [];
   room.game.round += 1;
 
@@ -324,9 +333,6 @@ function resolveTrick(room) {
   }, played[0]);
 
   const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
-  const previousScore = room.game.scores[winningTeam];
-  const nextScore = previousScore + 2;
-  room.game.scores[winningTeam] = Math.min(nextScore, 11);
   room.game.handWins[winningTeam] = (room.game.handWins[winningTeam] || 0) + 1;
 
   room.game.history.push({
@@ -347,32 +353,17 @@ function resolveTrick(room) {
     card: winnerEntry.card
   };
 
-  if (room.game.pendingBet && room.game.pendingBet.accepted) {
-    const pool = room.game.pendingBet.level === 'chico-fuera' ? 'chico' : 'points';
-    if (pool === 'points') {
-      room.game.scores[winningTeam] = Math.min(room.game.scores[winningTeam] + room.game.pendingBet.level, 11);
-    } else {
-      room.game.chicos[winningTeam] += 1;
-      room.game.history.push({
-        chico: true,
-        team: winningTeam,
-        chicos: { ...room.game.chicos }
-      });
-    }
-    room.game.pendingBet = null;
-  }
-
-  if (room.game.scores[winningTeam] >= 11) {
-    room.game.tumboTeam = winningTeam;
-    room.game.status = 'tumbo';
-    room.game.pendingTumbo = true;
-    room.game.playedCards = [];
-    notifyRoom(room);
-    return;
-  }
-
   if (!room.game.pendingTumbo && room.game.handWins[winningTeam] >= 2) {
     awardStoneForRound(room, winningTeam);
+
+    if (room.game.scores[winningTeam] >= 11) {
+      room.game.tumboTeam = winningTeam;
+      room.game.status = 'tumbo';
+      room.game.pendingTumbo = true;
+      room.game.playedCards = [];
+      notifyRoom(room);
+      return;
+    }
 
     notifyRoom(room);
     return;
@@ -606,12 +597,12 @@ io.on('connection', (socket) => {
 
     if (accept === false) {
       const senderTeam = room.game.pendingBet.challengerTeam;
-      room.game.scores[senderTeam] = Math.min(room.game.scores[senderTeam] + 2, 11);
+      room.game.roundAward = { team: senderTeam, points: 2, chico: false };
       room.game.history.push({
         envio: false,
         team: senderTeam,
         rejectedBy: player.team,
-        score: { ...room.game.scores }
+        message: 'El envío se rechaza y se liquidará al terminar la ronda.'
       });
       room.game.pendingBet = null;
       notifyRoom(room);
@@ -620,19 +611,18 @@ io.on('connection', (socket) => {
 
     room.game.pendingBet.accepted = true;
     const senderTeam = room.game.pendingBet.challengerTeam;
-
-    if (room.game.pendingBet.level === 'chico-fuera') {
-      room.game.chicos[senderTeam] = Math.min((room.game.chicos[senderTeam] || 0) + 1, 3);
-    } else {
-      room.game.scores[senderTeam] = Math.min((room.game.scores[senderTeam] || 0) + Number(room.game.pendingBet.level), 11);
-    }
+    room.game.roundAward = {
+      team: senderTeam,
+      points: room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level),
+      chico: room.game.pendingBet.level === 'chico-fuera'
+    };
 
     room.game.history.push({
       envio: true,
       team: senderTeam,
       acceptedBy: room.game.pendingBet.targetTeam,
       level: room.game.pendingBet.level,
-      message: 'El envío ha sido aceptado.'
+      message: 'El envío ha sido aceptado y se liquidará al terminar la ronda.'
     });
     room.game.pendingBet = null;
     notifyRoom(room);
