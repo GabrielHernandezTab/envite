@@ -42,7 +42,11 @@ const elements = {
   betResponsePanel: document.getElementById('bet-response-panel'),
   betResponseText: document.getElementById('bet-response-text'),
   betAcceptBtn: document.getElementById('bet-accept-btn'),
-  betRejectBtn: document.getElementById('bet-reject-btn')
+  betRejectBtn: document.getElementById('bet-reject-btn'),
+  betRaise4Btn: document.getElementById('bet-raise-4-btn'),
+  betRaise7Btn: document.getElementById('bet-raise-7-btn'),
+  betRaise9Btn: document.getElementById('bet-raise-9-btn'),
+  betRaiseChicoBtn: document.getElementById('bet-raise-chico-btn')
 };
 
 let myPlayerId = null;
@@ -428,6 +432,10 @@ elements.envite9Btn.addEventListener('click', () => socket.emit('send-bet', { le
 elements.enviteChicoBtn.addEventListener('click', () => socket.emit('send-bet', { level: 'chico-fuera' }));
 elements.betAcceptBtn.addEventListener('click', () => socket.emit('bet-response', { accept: true }));
 elements.betRejectBtn.addEventListener('click', () => socket.emit('bet-response', { accept: false }));
+elements.betRaise4Btn?.addEventListener('click', () => socket.emit('bet-response', { accept: 'raise', level: 4 }));
+elements.betRaise7Btn?.addEventListener('click', () => socket.emit('bet-response', { accept: 'raise', level: 7 }));
+elements.betRaise9Btn?.addEventListener('click', () => socket.emit('bet-response', { accept: 'raise', level: 9 }));
+elements.betRaiseChicoBtn?.addEventListener('click', () => socket.emit('bet-response', { accept: 'raise', level: 'chico-fuera' }));
 elements.closeRoomBtn.addEventListener('click', () => {
   socket.emit('close-room');
 });

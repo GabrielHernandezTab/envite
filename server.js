@@ -266,6 +266,52 @@ function maybeAwardChico(room, team) {
   return false;
 }
 
+function compareBetLevels(currentLevel, candidateLevel) {
+  if (currentLevel === 'chico-fuera') return false;
+  if (candidateLevel === 'chico-fuera') return true;
+  return Number(candidateLevel) > Number(currentLevel);
+}
+
+function awardStoneForRound(room, team) {
+  room.game.scores[team] = Math.min((room.game.scores[team] || 0) + 1, 11);
+  room.game.history.push({
+    roundWinner: team,
+    reason: '2 de 3 manos',
+    scoreAfter: { ...room.game.scores },
+    handWins: { ...room.game.handWins }
+  });
+
+  room.game.handWins = { 0: 0, 1: 0 };
+  room.game.playedCards = [];
+  room.game.round += 1;
+
+  if (room.game.round > room.game.maxRounds) {
+    room.game.status = 'finished';
+    const team0 = room.game.scores[0];
+    const team1 = room.game.scores[1];
+    room.game.finalWinner = team0 === team1 ? 'empate' : team0 > team1 ? 0 : 1;
+    return;
+  }
+
+  room.game.visibleCard = createDeck().pop();
+  const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
+  room.players.forEach((player) => {
+    player.hand = [];
+  });
+
+  const deck = createDeck();
+  for (let i = 0; i < 3; i += 1) {
+    orderedPlayers.forEach((player) => {
+      player.hand.push(deck.pop());
+    });
+  }
+
+  room.game.deck = deck;
+  room.game.status = 'playing';
+  room.game.turnPlayerId = orderedPlayers[0]?.id || room.players[0]?.id;
+  room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+}
+
 function resolveTrick(room) {
   const played = room.game.playedCards;
   const trumpSuit = room.game.visibleCard.suit;
@@ -281,10 +327,12 @@ function resolveTrick(room) {
   const previousScore = room.game.scores[winningTeam];
   const nextScore = previousScore + 2;
   room.game.scores[winningTeam] = Math.min(nextScore, 11);
+  room.game.handWins[winningTeam] = (room.game.handWins[winningTeam] || 0) + 1;
 
   room.game.history.push({
     trick: room.game.round,
     winnerTeam: winningTeam,
+    handWins: { ...room.game.handWins },
     scoreAfter: { ...room.game.scores },
     played: played.map((entry) => ({
       player: room.players.find((player) => player.id === entry.playerId)?.name,
@@ -323,31 +371,17 @@ function resolveTrick(room) {
     return;
   }
 
-  if (!room.game.pendingTumbo) {
-    room.game.handWins = room.game.handWins || { 0: 0, 1: 0 };
-    const finishedByChico = maybeAwardChico(room, winningTeam);
-    if (finishedByChico) {
-      notifyRoom(room);
-      return;
-    }
+  if (!room.game.pendingTumbo && room.game.handWins[winningTeam] >= 2) {
+    awardStoneForRound(room, winningTeam);
+
+    notifyRoom(room);
+    return;
   }
 
   room.game.playedCards = [];
-  room.game.round += 1;
 
-  if (room.game.round > room.game.maxRounds) {
-    room.game.status = 'finished';
-    const team0 = room.game.scores[0];
-    const team1 = room.game.scores[1];
-    const winner = team0 === team1 ? 'empate' : team0 > team1 ? 0 : 1;
-    room.game.finalWinner = winner;
-    room.players.forEach((player) => {
-      player.score = room.game.scores[player.team];
-    });
-  } else {
-    room.game.turnPlayerId = winnerEntry.playerId;
-    room.game.turnOrder = buildAlternatingTurnOrder(room, winnerEntry.playerId);
-  }
+  room.game.turnPlayerId = winnerEntry.playerId;
+  room.game.turnOrder = buildAlternatingTurnOrder(room, winnerEntry.playerId);
 
   notifyRoom(room);
 }
@@ -540,12 +574,35 @@ io.on('connection', (socket) => {
     notifyRoom(room);
   });
 
-  socket.on('bet-response', ({ accept }) => {
+  socket.on('bet-response', ({ accept, level }) => {
     const room = getRoomBySocketId(socket.id);
     if (!room || !room.game || !room.game.pendingBet) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.team !== room.game.pendingBet.targetTeam) return;
+
+    if (accept === 'raise' && level !== undefined) {
+      const candidateLevel = level === 'chico-fuera' ? level : Number(level);
+
+      if (compareBetLevels(room.game.pendingBet.level, candidateLevel)) {
+        const previousChallenger = room.game.pendingBet.challengerTeam;
+        room.game.pendingBet = {
+          challengerTeam: player.team,
+          targetTeam: previousChallenger,
+          level: candidateLevel,
+          accepted: null
+        };
+        room.game.history.push({
+          envio: true,
+          team: player.team,
+          response: 'subida',
+          level: candidateLevel,
+          message: 'Se ha subido el envío.'
+        });
+        notifyRoom(room);
+        return;
+      }
+    }
 
     if (accept === false) {
       const senderTeam = room.game.pendingBet.challengerTeam;
@@ -562,13 +619,22 @@ io.on('connection', (socket) => {
     }
 
     room.game.pendingBet.accepted = true;
+    const senderTeam = room.game.pendingBet.challengerTeam;
+
+    if (room.game.pendingBet.level === 'chico-fuera') {
+      room.game.chicos[senderTeam] = Math.min((room.game.chicos[senderTeam] || 0) + 1, 3);
+    } else {
+      room.game.scores[senderTeam] = Math.min((room.game.scores[senderTeam] || 0) + Number(room.game.pendingBet.level), 11);
+    }
+
     room.game.history.push({
       envio: true,
-      team: room.game.pendingBet.challengerTeam,
+      team: senderTeam,
       acceptedBy: room.game.pendingBet.targetTeam,
       level: room.game.pendingBet.level,
       message: 'El envío ha sido aceptado.'
     });
+    room.game.pendingBet = null;
     notifyRoom(room);
   });
 

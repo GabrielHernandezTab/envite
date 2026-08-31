@@ -21,6 +21,13 @@
       <main class="panel">
         <section class="setup-box" id="setup-box">
           <div class="field">
+          <div class="hand-panel">
+            <div class="hand-header">
+              <p>Tu mano</p>
+              <span id="turn-indicator">Esperando turno</span>
+            </div>
+            <div class="hand" id="hand"></div>
+          </div>
             <label for="player-name">Tu nombre</label>
             <input id="player-name" maxlength="18" value="Jugador" />
           </div>
@@ -29,6 +36,12 @@
             <label for="room-code">Código de la sala</label>
             <input id="room-code" maxlength="5" placeholder="ABCDE" />
           </div>
+            <div class="action-row">
+              <button id="bet-raise-4-btn" class="secondary">Subir a 4</button>
+              <button id="bet-raise-7-btn" class="secondary">Subir a 7</button>
+              <button id="bet-raise-9-btn" class="secondary">Subir a 9</button>
+              <button id="bet-raise-chico-btn" class="secondary">Subir a chico</button>
+            </div>
 
           <div class="buttons-row">
             <button id="create-room-btn">Crear sala</button>
