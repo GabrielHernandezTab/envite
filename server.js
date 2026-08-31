@@ -13,14 +13,52 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 const rooms = new Map();
+const suits = ['oros', 'copas', 'espadas', 'bastos'];
+const ranks = [
+  { id: 1, label: '1', value: 1 },
+  { id: 2, label: '2', value: 2 },
+  { id: 3, label: '3', value: 3 },
+  { id: 4, label: '4', value: 4 },
+  { id: 5, label: '5', value: 5 },
+  { id: 6, label: '6', value: 6 },
+  { id: 7, label: '7', value: 7 },
+  { id: 10, label: '10', value: 10 },
+  { id: 11, label: '11', value: 11 },
+  { id: 12, label: '12', value: 12 }
+];
 
 app.use(express.static('public'));
 
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function createDeck() {
+  const deck = [];
+  for (const suit of suits) {
+    for (const rank of ranks) {
+      deck.push({
+        id: `${suit}-${rank.id}`,
+        suit,
+        rank: rank.id,
+        label: rank.label,
+        value: rank.value,
+        pretty: `${rank.label} de ${suit}`
+      });
+    }
+  }
+  return shuffle(deck);
+}
+
 function createRoomCode() {
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
   for (let i = 0; i < 5; i += 1) {
-    code += letters[Math.floor(Math.random() * letters.length)];
+    code += chars[Math.floor(Math.random() * chars.length)];
   }
   return code;
 }
@@ -30,126 +68,180 @@ function getRoom(code) {
     rooms.set(code, {
       code,
       players: [],
+      spectators: [],
       game: null,
-      lastResult: null
+      ownerId: null
     });
   }
   return rooms.get(code);
 }
 
-function teamNames(room) {
-  if (!room || !room.players.length) return ['Equipo A', 'Equipo B'];
-  return ['Equipo A', 'Equipo B'];
+function getRoomBySocketId(socketId) {
+  for (const room of rooms.values()) {
+    if (room.players.some((player) => player.id === socketId)) {
+      return room;
+    }
+    if (room.spectators.some((spec) => spec.id === socketId)) {
+      return room;
+    }
+  }
+  return null;
 }
 
-function serializeRoom(room) {
+function serializeRoom(room, viewerId = null) {
+  const isPlayer = room.players.some((player) => player.id === viewerId);
+  const isSpectator = room.spectators.some((spec) => spec.id === viewerId);
+
   return {
     code: room.code,
+    ownerId: room.ownerId,
     players: room.players.map((player) => ({
       id: player.id,
       name: player.name,
       team: player.team,
       score: player.score,
-      choice: player.choice
+      ready: player.ready,
+      hand: isPlayer || isSpectator ? player.hand : [],
+      seat: player.seat,
+      isHost: player.id === room.ownerId
+    })),
+    spectators: room.spectators.map((spec) => ({
+      id: spec.id,
+      name: spec.name
     })),
     game: room.game ? {
       status: room.game.status,
       round: room.game.round,
       maxRounds: room.game.maxRounds,
       scores: room.game.scores,
-      lastResult: room.game.lastResult,
-      roundValues: room.game.roundValues
+      visibleCard: room.game.visibleCard,
+      turnPlayerId: room.game.turnPlayerId,
+      playedCards: room.game.playedCards,
+      history: room.game.history,
+      trickWinner: room.game.trickWinner
     } : null,
-    lastResult: room.lastResult
+    teamCounts: {
+      0: room.players.filter((player) => player.team === 0).length,
+      1: room.players.filter((player) => player.team === 1).length
+    }
   };
-}
-
-function assignTeams(room) {
-  room.players.forEach((player, index) => {
-    player.team = index < 2 ? 0 : 1;
-  });
 }
 
 function notifyRoom(room) {
-  io.to(room.code).emit('room-state', serializeRoom(room));
+  room.players.forEach((player) => {
+    io.to(player.id).emit('room-state', serializeRoom(room, player.id));
+  });
+  room.spectators.forEach((spectator) => {
+    io.to(spectator.id).emit('room-state', serializeRoom(room, spectator.id));
+  });
 }
 
-function finalizeRound(room) {
-  const values = room.game.roundValues;
-  const totals = { 0: 0, 1: 0 };
+function getMostBalancedTeam(room) {
+  const teamA = room.players.filter((player) => player.team === 0).length;
+  const teamB = room.players.filter((player) => player.team === 1).length;
+  if (teamA <= teamB) return 0;
+  return 1;
+}
+
+function startGame(room) {
+  if (room.players.length !== 4) return;
+  if (room.players.filter((player) => player.team === 0).length !== 2) return;
+  if (room.players.filter((player) => player.team === 1).length !== 2) return;
+
+  const deck = createDeck();
+  const visibleCard = deck.pop();
+  const activePlayers = room.players.slice();
 
   room.players.forEach((player) => {
-    const val = Number(values[player.id]);
-    if (!Number.isNaN(val)) {
-      totals[player.team] += val;
-    }
+    player.hand = [];
+    player.score = 0;
   });
 
-  const winner = totals[0] === totals[1] ? 'empate' : totals[0] > totals[1] ? 0 : 1;
-
-  if (winner !== 'empate') {
-    room.game.scores[winner] += 1;
+  for (let i = 0; i < 3; i += 1) {
+    activePlayers.forEach((player) => {
+      player.hand.push(deck.pop());
+    });
   }
 
-  room.lastResult = {
-    round: room.game.round,
-    totals,
-    winner,
-    players: room.players.map((player) => ({
-      name: player.name,
-      team: player.team,
-      choice: values[player.id]
-    }))
+  room.game = {
+    status: 'playing',
+    round: 1,
+    maxRounds: 3,
+    cardsPerPlayer: 3,
+    deck,
+    visibleCard,
+    scores: { 0: 0, 1: 0 },
+    playedCards: [],
+    history: [],
+    trickWinner: null,
+    turnPlayerId: activePlayers[0].id,
+    turnOrder: activePlayers.map((player) => player.id)
   };
-
-  room.game.lastResult = room.lastResult;
-  room.game.round += 1;
-  room.game.roundValues = {};
-  room.players.forEach((player) => {
-    player.choice = null;
-  });
-
-  if (room.game.round > room.game.maxRounds) {
-    room.game.status = 'finished';
-    const scores = room.game.scores;
-    let teamWinner = 'empate';
-    if (scores[0] !== scores[1]) {
-      teamWinner = scores[0] > scores[1] ? 0 : 1;
-    }
-    room.lastResult = {
-      ...room.lastResult,
-      final: true,
-      teamWinner,
-      scores
-    };
-  }
 
   notifyRoom(room);
 }
 
-function startGame(room) {
-  if (room.players.length !== 4) {
-    return;
+function resolveTrick(room) {
+  const played = room.game.playedCards;
+  const trumpSuit = room.game.visibleCard.suit;
+
+  const winnerEntry = played.reduce((winner, entry) => {
+    const currentCard = entry.card;
+    const winnerCard = winner.card;
+
+    const currTrump = currentCard.suit === trumpSuit;
+    const winTrump = winnerCard.suit === trumpSuit;
+
+    if (currTrump && !winTrump) return entry;
+    if (!currTrump && winTrump) return winner;
+    if (currTrump && winTrump) {
+      return currentCard.value > winnerCard.value ? entry : winner;
+    }
+    if (currentCard.suit !== winnerCard.suit) return winner;
+    return currentCard.value > winnerCard.value ? entry : winner;
+  }, played[0]);
+
+  const winningTeam = room.players.find((player) => player.id === winnerEntry.playerId)?.team;
+
+  room.game.scores[winningTeam] += 1;
+  room.game.history.push({
+    trick: room.game.round,
+    winnerTeam: winningTeam,
+    played: played.map((entry) => ({
+      player: room.players.find((player) => player.id === entry.playerId)?.name,
+      card: entry.card.pretty,
+      team: room.players.find((player) => player.id === entry.playerId)?.team
+    }))
+  });
+
+  room.game.trickWinner = {
+    team: winningTeam,
+    playerId: winnerEntry.playerId,
+    card: winnerEntry.card
+  };
+
+  room.game.playedCards = [];
+  room.game.round += 1;
+
+  if (room.game.round > room.game.maxRounds) {
+    room.game.status = 'finished';
+    const team0 = room.game.scores[0];
+    const team1 = room.game.scores[1];
+    const winner = team0 === team1 ? 'empate' : team0 > team1 ? 0 : 1;
+    room.game.finalWinner = winner;
+    room.players.forEach((player) => {
+      player.score = room.game.scores[player.team];
+    });
+  } else {
+    const nextStarter = room.players.find((player) => player.id === winnerEntry.playerId);
+    room.game.turnPlayerId = nextStarter.id;
   }
 
-  assignTeams(room);
-  room.game = {
-    status: 'playing',
-    round: 1,
-    maxRounds: 5,
-    scores: { 0: 0, 1: 0 },
-    roundValues: {},
-    lastResult: null
-  };
-  room.players.forEach((player) => {
-    player.choice = null;
-  });
-  room.lastResult = null;
   notifyRoom(room);
 }
 
 io.on('connection', (socket) => {
-  socket.on('create-room', (name) => {
+  socket.on('create-room', ({ name }) => {
     const roomCode = createRoomCode();
     const room = getRoom(roomCode);
     const playerName = String(name || 'Jugador').trim().slice(0, 18) || 'Jugador';
@@ -157,107 +249,200 @@ io.on('connection', (socket) => {
     room.players.push({
       id: socket.id,
       name: playerName,
-      team: -1,
+      team: null,
       score: 0,
-      choice: null
+      ready: false,
+      hand: [],
+      seat: room.players.length,
+      isHost: room.players.length === 0
     });
 
+    room.ownerId = socket.id;
     socket.join(room.code);
+    socket.data.roomCode = room.code;
+    socket.data.role = 'player';
+    socket.emit('joined-room', { code: room.code, role: 'player' });
     notifyRoom(room);
-    socket.emit('joined-room', { code: room.code });
-
-    if (room.players.length === 4) {
-      startGame(room);
-    }
   });
 
   socket.on('join-room', ({ roomCode, name }) => {
     const code = String(roomCode || '').toUpperCase();
-    const room = getRoom(code);
+    const room = rooms.get(code);
     const playerName = String(name || 'Jugador').trim().slice(0, 18) || 'Jugador';
 
-    if (!room || room.players.length >= 4) {
-      socket.emit('join-error', 'La sala está llena o no existe.');
+    if (!room) {
+      socket.emit('join-error', 'La sala no existe.');
+      return;
+    }
+
+    if (room.players.length >= 4 && !room.players.some((player) => player.id === socket.id)) {
+      socket.emit('join-error', 'La sala está completa.');
       return;
     }
 
     if (room.players.some((player) => player.id === socket.id)) {
+      socket.emit('joined-room', { code: room.code, role: 'player' });
       return;
     }
 
     room.players.push({
       id: socket.id,
       name: playerName,
-      team: -1,
+      team: null,
       score: 0,
-      choice: null
+      ready: false,
+      hand: [],
+      seat: room.players.length,
+      isHost: false
     });
 
     socket.join(room.code);
+    socket.data.roomCode = room.code;
+    socket.data.role = 'player';
+    socket.emit('joined-room', { code: room.code, role: 'player' });
     notifyRoom(room);
-    socket.emit('joined-room', { code: room.code });
-
-    if (room.players.length === 4) {
-      startGame(room);
-    }
   });
 
-  socket.on('play-choice', (value) => {
-    const room = [...rooms.values()].find((entry) => entry.players.some((player) => player.id === socket.id));
-    if (!room || !room.game || room.game.status !== 'playing') {
+  socket.on('spectate-room', ({ roomCode, name }) => {
+    const code = String(roomCode || '').toUpperCase();
+    const room = rooms.get(code);
+    const spectatorName = String(name || 'Espectador').trim().slice(0, 18) || 'Espectador';
+
+    if (!room) {
+      socket.emit('join-error', 'No existe esa sala.');
       return;
     }
+
+    if (room.spectators.some((spectator) => spectator.id === socket.id)) {
+      socket.emit('joined-room', { code: room.code, role: 'spectator' });
+      return;
+    }
+
+    room.spectators.push({
+      id: socket.id,
+      name: spectatorName
+    });
+
+    socket.join(room.code);
+    socket.data.roomCode = room.code;
+    socket.data.role = 'spectator';
+    socket.emit('joined-room', { code: room.code, role: 'spectator' });
+    notifyRoom(room);
+  });
+
+  socket.on('select-team', ({ team }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || room.game) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player) return;
 
-    const numericValue = Number(value);
-    if (Number.isNaN(numericValue) || numericValue < 1 || numericValue > 9) {
+    const teamNumber = Number(team);
+    if (![0, 1].includes(teamNumber)) return;
+
+    if (room.players.filter((entry) => entry.team === teamNumber).length >= 2) {
+      socket.emit('join-error', 'Ese equipo ya está completo.');
       return;
     }
 
-    if (player.choice !== null) {
-      return;
-    }
+    player.team = teamNumber;
+    player.ready = true;
 
-    player.choice = numericValue;
-    room.game.roundValues[socket.id] = numericValue;
-
-    if (Object.keys(room.game.roundValues).length === 4) {
-      finalizeRound(room);
+    if (room.players.length === 4 && room.players.every((entry) => entry.team !== null)) {
+      startGame(room);
     }
 
     notifyRoom(room);
   });
 
-  socket.on('reset-game', () => {
-    const room = [...rooms.values()].find((entry) => entry.players.some((player) => player.id === socket.id));
+  socket.on('play-card', ({ cardId }) => {
+    const room = getRoomBySocketId(socket.id);
+    if (!room || !room.game || room.game.status !== 'playing') return;
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player) return;
+    if (room.game.turnPlayerId !== socket.id) return;
+
+    const card = player.hand.find((entry) => entry.id === cardId);
+    if (!card) return;
+
+    player.hand = player.hand.filter((entry) => entry.id !== cardId);
+    room.game.playedCards.push({
+      playerId: socket.id,
+      card
+    });
+
+    const nextIndex = room.players.findIndex((entry) => entry.id === socket.id);
+    if (room.game.playedCards.length === 4) {
+      resolveTrick(room);
+      return;
+    }
+
+    const nextPlayer = room.players[(nextIndex + 1) % room.players.length];
+    room.game.turnPlayerId = nextPlayer.id;
+    notifyRoom(room);
+  });
+
+  socket.on('close-room', () => {
+    const room = getRoomBySocketId(socket.id);
     if (!room) return;
 
-    room.game = null;
-    room.lastResult = null;
-    room.players.forEach((player) => {
-      player.team = -1;
-      player.choice = null;
-      player.score = 0;
-    });
-    notifyRoom(room);
+    const player = room.players.find((entry) => entry.id === socket.id);
+    if (!player || room.ownerId !== socket.id) return;
+
+    io.to(room.code).emit('room-closed');
+    rooms.delete(room.code);
+  });
+
+  socket.on('return-to-lobby', () => {
+    const room = getRoomBySocketId(socket.id);
+    if (room) {
+      const playerIndex = room.players.findIndex((entry) => entry.id === socket.id);
+      if (playerIndex >= 0) {
+        room.players.splice(playerIndex, 1);
+      }
+      const spectatorIndex = room.spectators.findIndex((entry) => entry.id === socket.id);
+      if (spectatorIndex >= 0) {
+        room.spectators.splice(spectatorIndex, 1);
+      }
+      if (room.players.length === 0 && room.spectators.length === 0) {
+        rooms.delete(room.code);
+      } else {
+        notifyRoom(room);
+      }
+    }
+    socket.data.roomCode = null;
+    socket.data.role = null;
   });
 
   socket.on('disconnect', () => {
-    for (const room of rooms.values()) {
-      const index = room.players.findIndex((player) => player.id === socket.id);
-      if (index >= 0) {
-        room.players.splice(index, 1);
-        if (room.players.length === 0) {
-          rooms.delete(room.code);
-        } else {
-          assignTeams(room);
-          notifyRoom(room);
-        }
-        break;
-      }
+    const room = getRoomBySocketId(socket.id);
+    if (!room) return;
+
+    const playerIndex = room.players.findIndex((entry) => entry.id === socket.id);
+    if (playerIndex >= 0) {
+      room.players.splice(playerIndex, 1);
     }
+    const spectatorIndex = room.spectators.findIndex((entry) => entry.id === socket.id);
+    if (spectatorIndex >= 0) {
+      room.spectators.splice(spectatorIndex, 1);
+    }
+
+    if (room.players.length === 0 && room.spectators.length === 0) {
+      rooms.delete(room.code);
+      return;
+    }
+
+    if (room.players.length > 0 && room.ownerId === socket.id) {
+      room.ownerId = room.players[0].id;
+      room.players[0].isHost = true;
+    }
+
+    if (!room.game && room.players.length === 4 && room.players.every((player) => player.team !== null)) {
+      startGame(room);
+    }
+
+    notifyRoom(room);
   });
 });
 

@@ -11,7 +11,7 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">Multijugador</p>
-          <h1>Envite Canario 2v2</h1>
+          <h1>Envite Canario</h1>
         </div>
         <div class="server-state">
           <span id="room-code-badge">Sala: --</span>
@@ -33,6 +33,7 @@
           <div class="buttons-row">
             <button id="create-room-btn">Crear sala</button>
             <button id="join-room-btn" class="secondary">Unirse</button>
+            <button id="spectate-btn" class="secondary">Espectar</button>
           </div>
         </section>
 
@@ -42,30 +43,43 @@
               <p class="eyebrow">Estado</p>
               <h2 id="status-text">Esperando jugadores</h2>
             </div>
-            <button id="reset-btn" class="secondary">Reiniciar</button>
+            <div class="action-row">
+              <button id="team-a-btn" class="secondary">Equipo A</button>
+              <button id="team-b-btn" class="secondary">Equipo B</button>
+              <button id="close-room-btn" class="danger">Cerrar sala</button>
+            </div>
           </div>
 
-          <div class="scoreboard">
-            <div class="team team-a">
-              <span>Equipo A</span>
-              <strong id="score-a">0</strong>
+          <div class="table-info">
+            <div class="card visible-card">
+              <span class="tag">Carta visible</span>
+              <strong id="visible-card">-</strong>
             </div>
-            <div class="team team-b">
-              <span>Equipo B</span>
-              <strong id="score-b">0</strong>
+            <div class="scoreboard">
+              <div class="team team-a">
+                <span>Equipo A</span>
+                <strong id="score-a">0</strong>
+              </div>
+              <div class="team team-b">
+                <span>Equipo B</span>
+                <strong id="score-b">0</strong>
+              </div>
             </div>
           </div>
 
           <div class="round-panel">
-            <p id="round-text">Ronda 1 de 5</p>
-            <p id="result-text">Espera a que todos elijan su valor.</p>
+            <p id="round-text">Ronda 1 de 3</p>
+            <p id="result-text">Esperando que los 4 jugadores elijan equipo.</p>
           </div>
 
           <div class="players-grid" id="players-grid"></div>
 
-          <div class="choices-box">
-            <p>Elige un número</p>
-            <div class="choices" id="choices"></div>
+          <div class="hand-panel">
+            <div class="hand-header">
+              <p>Tu mano</p>
+              <span id="turn-indicator">Esperando turno</span>
+            </div>
+            <div class="hand" id="hand"></div>
           </div>
         </section>
       </main>
