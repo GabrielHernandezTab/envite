@@ -21,6 +21,11 @@ const elements = {
   roundText: document.getElementById('round-text'),
   resultText: document.getElementById('result-text'),
   playersGrid: document.getElementById('players-grid'),
+  teamACount: document.getElementById('team-a-count'),
+  teamBCount: document.getElementById('team-b-count'),
+  teamAPlayers: document.getElementById('team-a-players'),
+  teamBPlayers: document.getElementById('team-b-players'),
+  seatPositions: document.getElementById('seat-positions'),
   visibleCard: document.getElementById('visible-card'),
   tableCards: document.getElementById('table-cards'),
   hand: document.getElementById('hand'),
@@ -150,8 +155,66 @@ function renderTableCards(playedCards, players) {
   });
 }
 
+function renderSeatPositions(players) {
+  if (!elements.seatPositions) return;
+
+  elements.seatPositions.innerHTML = '';
+  const orderedPlayers = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+  const reserved = orderedPlayers.length ? orderedPlayers : Array.from({ length: 4 }, (_, index) => ({ name: `Jugador ${index + 1}`, team: null, seat: index }));
+
+  const seatPositions = [
+    { className: 'seat seat-top-left', angle: 'top-left' },
+    { className: 'seat seat-top-right', angle: 'top-right' },
+    { className: 'seat seat-bottom-left', angle: 'bottom-left' },
+    { className: 'seat seat-bottom-right', angle: 'bottom-right' }
+  ];
+
+  reserved.slice(0, 4).forEach((player, index) => {
+    const seat = document.createElement('div');
+    const seatDef = seatPositions[index] || seatPositions[0];
+    seat.className = `seat ${seatDef.className}`;
+    seat.innerHTML = `
+      <div class="seat-avatar">${(player.name || 'Libre').charAt(0).toUpperCase()}</div>
+      <div class="seat-name">${player.name || 'Libre'}</div>
+      <div class="seat-team">${player.team === 0 ? 'Equipo A' : player.team === 1 ? 'Equipo B' : 'Esperando'}</div>
+    `;
+    elements.seatPositions.appendChild(seat);
+  });
+}
+
 function renderPlayers(players, room) {
   elements.playersGrid.innerHTML = '';
+  elements.teamAPlayers.innerHTML = '';
+  elements.teamBPlayers.innerHTML = '';
+  renderSeatPositions(players);
+
+  const teamA = players.filter((player) => player.team === 0);
+  const teamB = players.filter((player) => player.team === 1);
+
+  elements.teamACount.textContent = `${teamA.length} / 2`;
+  elements.teamBCount.textContent = `${teamB.length} / 2`;
+
+  [teamA, teamB].forEach((teamPlayers, teamIndex) => {
+    const list = teamIndex === 0 ? elements.teamAPlayers : elements.teamBPlayers;
+
+    if (teamPlayers.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'team-player-item empty';
+      empty.textContent = 'Sin jugadores';
+      list.appendChild(empty);
+      return;
+    }
+
+    teamPlayers.forEach((player) => {
+      const item = document.createElement('div');
+      item.className = 'team-player-item';
+      item.innerHTML = `
+        <span class="team-player-name">${player.name}</span>
+        <span class="team-player-role">${player.id === myPlayerId ? 'Tú' : 'Jugador'}</span>
+      `;
+      list.appendChild(item);
+    });
+  });
 
   players.forEach((player) => {
     const card = document.createElement('div');

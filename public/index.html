@@ -35,6 +35,18 @@
             <button id="join-room-btn" class="secondary">Unirse</button>
             <button id="spectate-btn" class="secondary">Espectar</button>
           </div>
+
+          <div class="rules-panel">
+            <h3>Normas rápidas del envite</h3>
+            <ul>
+              <li>Se juega en equipos de 2, con 3 manos y 2 de 3 para ganar.</li>
+              <li>La carta visible marca el palo de lo virado.</li>
+              <li>Si el primer jugador abre un palo, el resto debe seguirlo si lo tiene.</li>
+              <li>Cuando un equipo llega a 11 piedras entra en tumbo.</li>
+              <li>Si se rechaza el tumbo, el rival suma 1 piedra; si se acepta y se pierde, el rival suma 3.</li>
+              <li>También existe el envío: 2, 4, 7, 9 y chico fuera.</li>
+            </ul>
+          </div>
         </section>
 
         <section class="game-box hidden" id="game-box">
@@ -57,7 +69,7 @@
                 <div class="team-meta">
                   <span class="meta-label">Equipo A</span>
                   <strong id="score-a">0</strong>
-                  <small id=" chicos-a">Chicos: 0</small>
+                  <small id="chicos-a">Chicos: 0</small>
                 </div>
                 <span class="team-chip">Piedras</span>
               </div>
@@ -99,22 +111,31 @@
             </div>
           </div>
 
-          <div class="table-info">
-            <div class="visible-card">
-              <span class="tag">Carta visible</span>
-              <div id="visible-card" class="card-face red">
-                <div class="card-header">
-                  <span class="card-number">-</span>
-                  <span class="card-suit-name">-</span>
-                </div>
-                <div class="card-symbol">-</div>
-                <div class="card-footer">
-                  <span class="card-suit-name">-</span>
-                  <span class="card-number">-</span>
+          <div class="casino-table-wrap">
+            <div class="casino-table">
+              <div class="table-surface">
+                <div id="seat-positions" class="seat-positions"></div>
+                <div class="center-area">
+                  <div class="visible-card">
+                    <span class="tag">Carta visible</span>
+                    <div id="visible-card" class="card-face red">
+                      <div class="card-header">
+                        <span class="card-number">-</span>
+                        <span class="card-suit-name">-</span>
+                      </div>
+                      <div class="card-symbol">-</div>
+                      <div class="card-footer">
+                        <span class="card-suit-name">-</span>
+                        <span class="card-number">-</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
+          <div class="table-info">
             <div class="table-area">
               <div class="tag">Cartas sobre la mesa</div>
               <div id="table-cards" class="table-cards"></div>
@@ -127,6 +148,24 @@
             <div class="action-row">
               <button id="tumbo-yes-btn">Quiero jugar</button>
               <button id="tumbo-no-btn" class="danger">No quiero jugar</button>
+            </div>
+          </div>
+
+          <div class="team-board" id="team-board">
+            <div class="team-summary team-a">
+              <div class="team-summary-header">
+                <span>Equipo A</span>
+                <strong id="team-a-count">0 / 2</strong>
+              </div>
+              <div id="team-a-players" class="team-player-list"></div>
+            </div>
+
+            <div class="team-summary team-b">
+              <div class="team-summary-header">
+                <span>Equipo B</span>
+                <strong id="team-b-count">0 / 2</strong>
+              </div>
+              <div id="team-b-players" class="team-player-list"></div>
             </div>
           </div>
 
