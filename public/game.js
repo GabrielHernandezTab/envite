@@ -384,7 +384,7 @@ function updateRoom(room) {
     renderVisibleCard(room.game.visibleCard);
     const isTumbo = room.game.status === 'tumbo';
     const currentTeamCanSend = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null && room.game.status === 'playing'
-      && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel
+      && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel !== null && room.game.nextBetLevel !== undefined
       && room.game.lastBetTeam !== myPlayer.team;
     const isBetTarget = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null
       && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;

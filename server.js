@@ -304,19 +304,61 @@ function compareBetLevels(currentLevel, candidateLevel) {
 
 function awardStoneForRound(room, team) {
   const roundAward = room.game.roundAward || { team: null, points: 0, chico: false };
-  const points = roundAward.points > 0
-    ? (roundAward.team === null || roundAward.team === team ? roundAward.points : 0)
-    : 2;
-  room.game.scores[team] = Math.min((room.game.scores[team] || 0) + points, 11);
-  room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
-  room.game.history.push({
-    roundWinner: team,
-    reason: '2 de 3 manos',
-    pointsAwarded: points,
-    chicoAwarded: true,
-    scoreAfter: { ...room.game.scores },
-    handWins: { ...room.game.handWins }
-  });
+  const opponentTeam = 1 - team;
+  const noBetNoAward = roundAward.points <= 0 && !room.game.pendingBet;
+
+  if (noBetNoAward && (room.game.scores[team] || 0) === 10) {
+    const applyProgress = (score, delta) => {
+      const next = (score || 0) + delta;
+      if (next >= 13) return 0;
+      if (next === 12) return 11;
+      return next;
+    };
+
+    room.game.scores[team] = applyProgress(room.game.scores[team], 1);
+    room.game.scores[opponentTeam] = applyProgress(room.game.scores[opponentTeam], 1);
+
+    const teamWinsChico = room.game.scores[team] === 0 || room.game.scores[team] === 11;
+    const opponentWinsChico = room.game.scores[opponentTeam] === 0 || room.game.scores[opponentTeam] === 11;
+    if (teamWinsChico) room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
+    if (opponentWinsChico) room.game.chicos[opponentTeam] = Math.min((room.game.chicos[opponentTeam] || 0) + 1, 3);
+
+    room.game.history.push({
+      roundWinner: team,
+      reason: '10 en juego y pierde',
+      pointsAwarded: 1,
+      chicoAwarded: teamWinsChico || opponentWinsChico,
+      scoreAfter: { ...room.game.scores },
+      handWins: { ...room.game.handWins }
+    });
+  } else {
+    const points = roundAward.points > 0
+      ? (roundAward.team === null || roundAward.team === team ? roundAward.points : 0)
+      : 2;
+    const beforeScore = room.game.scores[team] || 0;
+    const nextScore = beforeScore + points;
+
+    if (nextScore >= 13) {
+      room.game.scores[team] = 0;
+    } else if (nextScore === 12) {
+      room.game.scores[team] = 11;
+    } else {
+      room.game.scores[team] = nextScore;
+    }
+
+    if (nextScore >= 13 || nextScore === 11) {
+      room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
+    }
+
+    room.game.history.push({
+      roundWinner: team,
+      reason: '2 de 3 manos',
+      pointsAwarded: points,
+      chicoAwarded: nextScore >= 13 || nextScore === 11,
+      scoreAfter: { ...room.game.scores },
+      handWins: { ...room.game.handWins }
+    });
+  }
 
   room.game.handWins = { 0: 0, 1: 0 };
   room.game.roundAward = { team: null, points: 0, chico: false };
@@ -752,6 +794,7 @@ io.on('connection', (socket) => {
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.role !== 'mandador' || player.team === null) return;
+    if (room.game.nextBetLevel === null || room.game.nextBetLevel === undefined) return;
 
     const value = String(level).toLowerCase();
     const validLevels = ['4', '7', '9', 'chico-fuera'];
@@ -927,7 +970,8 @@ io.on('connection', (socket) => {
       message: 'El equipo en tumbo acepta jugar y define el chico.'
     });
 
-    const canWinChico = room.game.scores[tumboTeam] >= 11;
+    const tumboScore = room.game.scores[tumboTeam] || 0;
+    const canWinChico = tumboScore >= 11;
     if (canWinChico) {
       room.game.scores[tumboTeam] = 0;
       room.game.chicos[tumboTeam] += 1;
@@ -936,7 +980,10 @@ io.on('connection', (socket) => {
         team: tumboTeam,
         chicos: { ...room.game.chicos },
         scoreAfter: { ...room.game.scores },
-        message: `El equipo ${tumboTeam === 0 ? 'A' : 'B'} gana el tumbo y sus piedras vuelven a cero.`
+        scoreBefore: tumboScore,
+        message: tumboScore > 13
+          ? `El equipo ${tumboTeam === 0 ? 'A' : 'B'} supera 13 piedras, reinicia a 0 y suma 1 chico.`
+          : `El equipo ${tumboTeam === 0 ? 'A' : 'B'} gana el tumbo con ${tumboScore} piedras y suma 1 chico.`
       });
       if (room.game.chicos[tumboTeam] >= 3) {
         room.game.status = 'finished';
