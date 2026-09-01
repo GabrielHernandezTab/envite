@@ -209,7 +209,14 @@
             </div>
             <div id="team-chat-messages" class="team-chat-messages" aria-live="polite"></div>
             <form id="team-chat-form" class="team-chat-form">
-              <input id="team-chat-input" maxlength="180" placeholder="Escribe un mensaje..." autocomplete="off" />
+              <select id="team-chat-input" aria-label="Elige una opción de chat" autocomplete="off">
+                <option value="">Elige una opción</option>
+                <option value="chilasco">chilasco</option>
+                <option value="medio flu">medio flu</option>
+                <option value="flu">flu</option>
+                <option value="malilla">malilla</option>
+                <option value="rey">rey</option>
+              </select>
               <button type="submit">Enviar</button>
             </form>
           </section>

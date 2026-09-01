@@ -578,8 +578,9 @@ elements.playAgainBtn.addEventListener('click', () => {
 });
 elements.teamChatForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  const text = elements.teamChatInput.value.trim();
-  if (!text) return;
+  const text = String(elements.teamChatInput.value || '').trim().toLowerCase();
+  const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'rey'];
+  if (!allowedMessages.includes(text)) return;
   socket.emit('team-chat', { text });
   elements.teamChatInput.value = '';
 });

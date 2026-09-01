@@ -358,12 +358,9 @@ function applyRoundForfeit(room, abandoningTeam, reason) {
   const awardedPoints = activeBet
     ? (activeBet.level === 'chico-fuera' ? 1 : Number(activeBet.level))
     : overridePoints ?? 2;
-  const chicoAwarded = activeBet?.level === 'chico-fuera' || room.game.roundAward?.chico || false;
+  const chicoAwarded = false;
 
   room.game.scores[rewardedTeam] = Math.min((room.game.scores[rewardedTeam] || 0) + awardedPoints, 11);
-  if (chicoAwarded) {
-    room.game.chicos[rewardedTeam] = Math.min((room.game.chicos[rewardedTeam] || 0) + 1, 3);
-  }
 
   room.game.history.push({
     round: room.game.round,
@@ -635,8 +632,9 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
-    const messageText = String(text || '').trim().slice(0, 180);
-    if (!player || player.team === null || !messageText) return;
+    const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'rey'];
+    const messageText = String(text || '').trim().toLowerCase();
+    if (!player || player.team === null || !allowedMessages.includes(messageText)) return;
 
     const message = {
       playerId: player.id,
@@ -824,10 +822,34 @@ io.on('connection', (socket) => {
       const rejectedBet = room.game.pendingBet;
       const winningTeam = rejectedBet.challengerTeam;
       const awardedLevel = rejectedBet.previousLevel ?? rejectedBet.level;
+
+      if (rejectedBet.previousLevel === null && rejectedBet.level === 4) {
+        room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + 2, 11);
+        room.game.roundAward = {
+          team: winningTeam,
+          points: 2,
+          chico: false
+        };
+        room.game.history.push({
+          envio: false,
+          team: winningTeam,
+          rejectedBy: player.team,
+          level: awardedLevel,
+          reason: 'abandono',
+          pointsAwarded: 2,
+          message: `El equipo ${player.team === 0 ? 'A' : 'B'} rechaza el primer envío y abandona la ronda; el equipo ${winningTeam === 0 ? 'A' : 'B'} gana 2 piedras.`
+        });
+        room.game.pendingBet = null;
+        room.game.nextBetLevel = null;
+        room.game.lastBetTeam = null;
+        notifyRoom(room);
+        return;
+      }
+
       room.game.roundAward = {
         team: winningTeam,
         points: awardedLevel === 'chico-fuera' ? 1 : Number(awardedLevel),
-        chico: awardedLevel === 'chico-fuera'
+        chico: false
       };
       room.game.history.push({
         envio: false,
@@ -847,7 +869,7 @@ io.on('connection', (socket) => {
     room.game.roundAward = {
       team: null,
       points: room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level),
-      chico: room.game.pendingBet.level === 'chico-fuera'
+      chico: false
     };
     room.game.lastBetTeam = senderTeam;
     room.game.nextBetLevel = room.game.pendingBet.level === 4 ? 7
@@ -879,15 +901,18 @@ io.on('connection', (socket) => {
 
     if (accept === false) {
       const otherTeam = 1 - tumboTeam;
-      room.game.scores[otherTeam] = Math.min(room.game.scores[otherTeam] + 1, 11);
+      room.game.scores[otherTeam] = Math.min((room.game.scores[otherTeam] || 0) + 1, 11);
       room.game.tumboTeam = null;
-      room.game.status = 'playing';
+      room.game.pendingTumbo = false;
+      room.game.challengeTeam = null;
       room.game.history.push({
         tumbo: false,
         team: tumboTeam,
         decision: 'rechaza',
-        score: { ...room.game.scores }
+        score: { ...room.game.scores },
+        message: 'No se acepta el tumbo; el equipo contrario gana 1 piedra y se reparten nuevas cartas.'
       });
+      reshuffleRound(room);
       room.game.turnPlayerId = room.game.turnOrder?.[0] || room.players[0].id;
       notifyRoom(room);
       return;
@@ -904,11 +929,14 @@ io.on('connection', (socket) => {
 
     const canWinChico = room.game.scores[tumboTeam] >= 11;
     if (canWinChico) {
+      room.game.scores[tumboTeam] = 0;
       room.game.chicos[tumboTeam] += 1;
       room.game.history.push({
         chico: true,
         team: tumboTeam,
-        chicos: { ...room.game.chicos }
+        chicos: { ...room.game.chicos },
+        scoreAfter: { ...room.game.scores },
+        message: `El equipo ${tumboTeam === 0 ? 'A' : 'B'} gana el tumbo y sus piedras vuelven a cero.`
       });
       if (room.game.chicos[tumboTeam] >= 3) {
         room.game.status = 'finished';
