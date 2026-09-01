@@ -104,6 +104,7 @@ function getRoomBySocketId(socketId) {
 function serializeRoom(room, viewerId = null) {
   return {
     code: room.code,
+    mode: room.mode || '2v2',
     ownerId: room.ownerId,
     players: room.players.map((player) => ({
       id: player.id,
@@ -166,6 +167,31 @@ function notifyRoom(room) {
   });
 }
 
+function getModeConfig(mode = '2v2') {
+  const normalizedMode = mode === '3v3' ? '3v3' : '2v2';
+  return {
+    mode: normalizedMode,
+    requiredPlayers: normalizedMode === '3v3' ? 6 : 4,
+    teamSize: normalizedMode === '3v3' ? 3 : 2,
+    mandadoLimit: normalizedMode === '3v3' ? 2 : 1,
+    roundWinTarget: 2,
+    trickSize: normalizedMode === '3v3' ? 6 : 4,
+    tumboThreshold: 11
+  };
+}
+
+function getRequiredPlayersForMode(mode) {
+  return getModeConfig(mode).requiredPlayers;
+}
+
+function getTeamSizeForMode(mode) {
+  return getModeConfig(mode).teamSize;
+}
+
+function getMandadoLimitForMode(mode) {
+  return getModeConfig(mode).mandadoLimit;
+}
+
 function getMostBalancedTeam(room) {
   const teamA = room.players.filter((player) => player.team === 0).length;
   const teamB = room.players.filter((player) => player.team === 1).length;
@@ -206,10 +232,18 @@ function getRandomStarterId(room) {
 }
 
 function startGame(room) {
-  if (room.players.length !== 4) return;
-  if (room.players.filter((player) => player.team === 0).length !== 2) return;
-  if (room.players.filter((player) => player.team === 1).length !== 2) return;
+  const mode = room.mode || '2v2';
+  const requiredPlayers = getRequiredPlayersForMode(mode);
+  const teamSize = getTeamSizeForMode(mode);
+  const mandadoLimit = getMandadoLimitForMode(mode);
+  if (room.players.length !== requiredPlayers) return;
+  if (room.players.filter((player) => player.team === 0).length !== teamSize) return;
+  if (room.players.filter((player) => player.team === 1).length !== teamSize) return;
   if (!room.players.every((player) => player.role === 'mandador' || player.role === 'mandado')) return;
+  if (room.players.filter((player) => player.team === 0 && player.role === 'mandador').length !== 1) return;
+  if (room.players.filter((player) => player.team === 1 && player.role === 'mandador').length !== 1) return;
+  if (room.players.filter((player) => player.team === 0 && player.role === 'mandado').length !== mandadoLimit) return;
+  if (room.players.filter((player) => player.team === 1 && player.role === 'mandado').length !== mandadoLimit) return;
 
   const deck = createDeck();
   const visibleCard = deck.pop();
@@ -273,30 +307,7 @@ function getCardPriority(card, trumpSuit) {
   return rankPriority[card.rank] ?? 0;
 }
 
-function maybeAwardChico(room, team) {
-  const other = 1 - team;
-  room.game.handWins[team] += 1;
-
-  if (room.game.handWins[team] >= 2 && room.game.handWins[other] < 2) {
-    room.game.chicos[team] += 1;
-    room.game.scores = { 0: 0, 1: 0 };
-    room.game.handWins = { 0: 0, 1: 0 };
-    room.game.history.push({
-      chico: true,
-      team,
-      chicos: { ...room.game.chicos },
-      scoreAfter: { ...room.game.scores }
-    });
-
-    if (room.game.chicos[team] >= 3) {
-      room.game.status = 'finished';
-      room.game.finalWinner = team;
-      return true;
-    }
-  }
-
-  return false;
-}
+// Chico solo se otorga: 1) Al ganar tumbo (2 de 3 manos), o 2) Al alcanzar 13+ en envite
 
 function compareBetLevels(currentLevel, candidateLevel) {
   if (currentLevel === 'chico-fuera') return false;
@@ -305,95 +316,92 @@ function compareBetLevels(currentLevel, candidateLevel) {
 }
 
 function awardStoneForRound(room, team) {
-  const roundAward = room.game.roundAward || { team: null, points: 0, chico: false };
   const opponentTeam = 1 - team;
-  const noBetNoAward = roundAward.points <= 0 && !room.game.pendingBet;
+  const teamScore = room.game.scores[team] || 0;
+  const hasActiveBet = !!room.game.pendingBet; // Solo si hay apuesta activa (no rechazada)
 
-  if (noBetNoAward && (room.game.scores[team] || 0) === 10) {
-    const applyProgress = (score, delta) => {
-      const next = (score || 0) + delta;
-      if (next >= 13) return 0;
-      if (next === 12) return 11;
-      return next;
-    };
-
-    room.game.scores[team] = applyProgress(room.game.scores[team], 1);
-    room.game.scores[opponentTeam] = applyProgress(room.game.scores[opponentTeam], 1);
-
-    const teamWinsChico = room.game.scores[team] === 0;
-    const opponentWinsChico = room.game.scores[opponentTeam] === 0;
-    if (teamWinsChico) room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
-    if (opponentWinsChico) room.game.chicos[opponentTeam] = Math.min((room.game.chicos[opponentTeam] || 0) + 1, 3);
-
+  // Caso 1: Equipo ganador está en 10 piedras → suma 1 y entra en tumbo
+  if (teamScore === 10) {
+    room.game.scores[team] = 11;
+    room.game.pendingBet = null;
+    room.game.betUsedThisRound = true;
     room.game.history.push({
       roundWinner: team,
-      reason: '10 en juego y pierde',
+      reason: 'En 10 piedras',
       pointsAwarded: 1,
-      chicoAwarded: teamWinsChico || opponentWinsChico,
-      scoreAfter: { ...room.game.scores },
-      handWins: { ...room.game.handWins }
+      scoreAfter: { ...room.game.scores }
     });
-  } else {
-    const points = roundAward.points > 0
-      ? (roundAward.team === null || roundAward.team === team ? roundAward.points : 0)
-      : 2;
-    const beforeScore = room.game.scores[team] || 0;
-    const nextScore = beforeScore + points;
-
-    if (nextScore >= 13) {
-      room.game.scores[team] = 0;
-    } else if (nextScore === 12) {
-      room.game.scores[team] = 11;
-    } else {
-      room.game.scores[team] = nextScore;
-    }
-
-    if (nextScore >= 13) {
-      room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
-      room.game.scores = { 0: 0, 1: 0 };
-    }
-
-    room.game.history.push({
-      roundWinner: team,
-      reason: '2 de 3 manos',
-      pointsAwarded: points,
-      chicoAwarded: nextScore >= 13,
-      scoreAfter: { ...room.game.scores },
-      handWins: { ...room.game.handWins }
-    });
-  }
-
-  room.game.handWins = { 0: 0, 1: 0 };
-  room.game.roundAward = { team: null, points: 0, chico: false };
-  room.game.nextBetLevel = 4;
-  room.game.lastBetTeam = null;
-  room.game.betUsedThisRound = false;
-  room.game.playedCards = [];
-  room.game.round += 1;
-
-  if (room.game.chicos[team] >= 3) {
-    room.game.status = 'finished';
-    room.game.finalWinner = team;
     return;
   }
 
-  const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
-  room.players.forEach((player) => {
-    player.hand = [];
-  });
-
-  const deck = createDeck();
-  room.game.visibleCard = deck.pop();
-  for (let i = 0; i < 3; i += 1) {
-    orderedPlayers.forEach((player) => {
-      player.hand.push(deck.pop());
+  // Caso 2: Equipo perdedor estaba en 10 piedras → suma 1 al equipo contrario
+  const opponentScore = room.game.scores[opponentTeam] || 0;
+  if (opponentScore === 10) {
+    room.game.scores[opponentTeam] = 11;
+    room.game.pendingBet = null;
+    room.game.betUsedThisRound = true;
+    room.game.history.push({
+      roundWinner: team,
+      loserIn10: true,
+      reason: 'Equipo contrario en 10 piedras',
+      pointsAwarded: 1,
+      scoreAfter: { ...room.game.scores }
     });
+    return;
   }
 
-  room.game.deck = deck;
-  room.game.status = 'playing';
-  room.game.turnPlayerId = getRandomStarterId(room) || orderedPlayers[0]?.id || room.players[0]?.id;
-  room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+  // Caso 3: Normal sin envite → suma 2
+  if (!hasActiveBet) {
+    room.game.scores[team] = Math.min((room.game.scores[team] || 0) + 2, 11);
+    room.game.pendingBet = null;
+    room.game.betUsedThisRound = true;
+    room.game.history.push({
+      roundWinner: team,
+      reason: 'Ronda normal',
+      pointsAwarded: 2,
+      scoreAfter: { ...room.game.scores }
+    });
+    return;
+  }
+
+  // Caso 4: Con envite activo → suma puntos del envite y verifica chico a 13+
+  const points = room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level);
+  const nextScore = (room.game.scores[team] || 0) + points;
+
+  if (nextScore >= 13) {
+    // Chico: reinicia ambos equipos a 0 y suma 1 chico al ganador
+    room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
+    room.game.scores = { 0: 0, 1: 0 };
+    room.game.pendingBet = null;
+    room.game.betUsedThisRound = true;
+    room.game.history.push({
+      roundWinner: team,
+      reason: 'Envite con 13+ piedras',
+      pointsAwarded: points,
+      chicoAwarded: true,
+      chicos: { ...room.game.chicos },
+      scoreAfter: { ...room.game.scores }
+    });
+
+    if (room.game.chicos[team] >= 3) {
+      room.game.status = 'finished';
+      room.game.finalWinner = team;
+    }
+    return;
+  }
+
+  // Normal con envite pero sin llegar a 13
+  room.game.scores[team] = Math.min(nextScore, 11);
+  room.game.history.push({
+    roundWinner: team,
+    reason: 'Envite',
+    pointsAwarded: points,
+    scoreAfter: { ...room.game.scores }
+  });
+  
+  // Limpiar apuesta después de resolver
+  room.game.pendingBet = null;
+  room.game.betUsedThisRound = true;
 }
 
 function applyRoundForfeit(room, abandoningTeam, reason) {
@@ -508,7 +516,71 @@ function resolveTrick(room) {
     card: winnerEntry.card
   };
 
-  if (!room.game.pendingTumbo && room.game.handWins[winningTeam] >= 2) {
+  const config = getModeConfig(room.mode || '2v2');
+  
+  // Si estamos en tumbo, contar hacia ganar 2 bazas
+  if (room.game.tumboTeam !== null) {
+    if (room.game.handWins[room.game.tumboTeam] >= 2) {
+      // Ganó tumbo: suma 1 chico y reinicia
+      room.game.chicos[room.game.tumboTeam] = Math.min((room.game.chicos[room.game.tumboTeam] || 0) + 1, 3);
+      room.game.scores = { 0: 0, 1: 0 };
+      room.game.history.push({
+        chico: true,
+        team: room.game.tumboTeam,
+        chicos: { ...room.game.chicos },
+        scoreAfter: { ...room.game.scores },
+        message: `El equipo ${room.game.tumboTeam === 0 ? 'A' : 'B'} gana el tumbo (2 de 3 manos) y suma 1 chico.`
+      });
+
+      if (room.game.chicos[room.game.tumboTeam] >= 3) {
+        room.game.status = 'finished';
+        room.game.finalWinner = room.game.tumboTeam;
+        notifyRoom(room);
+        return;
+      }
+
+      // Reinicia ronda
+      room.game.tumboTeam = null;
+      room.game.playedCards = [];
+      room.game.handWins = { 0: 0, 1: 0 };
+      room.game.roundAward = { team: null, points: 0, chico: false };
+      room.game.pendingBet = null;
+      room.game.nextBetLevel = 4;
+      room.game.lastBetTeam = null;
+      room.game.betUsedThisRound = false;
+      room.game.round += 1;
+
+      const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
+      room.players.forEach((player) => {
+        player.hand = [];
+      });
+
+      const deck = createDeck();
+      room.game.visibleCard = deck.pop();
+      for (let i = 0; i < 3; i += 1) {
+        orderedPlayers.forEach((player) => {
+          player.hand.push(deck.pop());
+        });
+      }
+
+      room.game.deck = deck;
+      room.game.status = 'playing';
+      room.game.turnPlayerId = getRandomStarterId(room) || orderedPlayers[0]?.id || room.players[0]?.id;
+      room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+      notifyRoom(room);
+      return;
+    }
+    
+    // Sigue en tumbo, pasar turno al siguiente jugador
+    room.game.playedCards = [];
+    room.game.turnPlayerId = winnerEntry.playerId;
+    room.game.turnOrder = buildAlternatingTurnOrder(room, winnerEntry.playerId);
+    notifyRoom(room);
+    return;
+  }
+
+  // Ronda normal (no tumbo)
+  if (room.game.handWins[winningTeam] >= config.roundWinTarget) {
     awardStoneForRound(room, winningTeam);
 
     if (room.game.status === 'finished') {
@@ -516,7 +588,7 @@ function resolveTrick(room) {
       return;
     }
 
-    if (room.game.scores[winningTeam] >= 11) {
+    if (room.game.scores[winningTeam] >= config.tumboThreshold) {
       room.game.tumboTeam = winningTeam;
       room.game.status = 'tumbo';
       room.game.pendingTumbo = true;
@@ -525,6 +597,33 @@ function resolveTrick(room) {
       return;
     }
 
+    // Ronda normal resuelta sin tumbo: reparte cartas nuevas
+    room.game.playedCards = [];
+    room.game.handWins = { 0: 0, 1: 0 };
+    room.game.roundAward = { team: null, points: 0, chico: false };
+    room.game.pendingBet = null;
+    room.game.nextBetLevel = 4;
+    room.game.lastBetTeam = null;
+    room.game.betUsedThisRound = false;
+    room.game.round += 1;
+
+    const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
+    room.players.forEach((player) => {
+      player.hand = [];
+    });
+
+    const deck = createDeck();
+    room.game.visibleCard = deck.pop();
+    for (let i = 0; i < 3; i += 1) {
+      orderedPlayers.forEach((player) => {
+        player.hand.push(deck.pop());
+      });
+    }
+
+    room.game.deck = deck;
+    room.game.status = 'playing';
+    room.game.turnPlayerId = getRandomStarterId(room) || orderedPlayers[0]?.id || room.players[0]?.id;
+    room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
     notifyRoom(room);
     return;
   }
@@ -538,11 +637,13 @@ function resolveTrick(room) {
 }
 
 io.on('connection', (socket) => {
-  socket.on('create-room', ({ name }) => {
+  socket.on('create-room', ({ name, mode }) => {
     const roomCode = createRoomCode();
     const room = getRoom(roomCode);
     const playerName = String(name || 'Jugador').trim().slice(0, 18) || 'Jugador';
+    const selectedMode = mode === '3v3' ? '3v3' : '2v2';
 
+    room.mode = selectedMode;
     room.players.push({
       id: socket.id,
       name: playerName,
@@ -573,7 +674,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.players.length >= 4 && !room.players.some((player) => player.id === socket.id)) {
+    const requiredPlayers = getRequiredPlayersForMode(room.mode || '2v2');
+    if (room.players.length >= requiredPlayers && !room.players.some((player) => player.id === socket.id)) {
       socket.emit('join-error', 'La sala está completa.');
       return;
     }
@@ -644,7 +746,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.players.filter((entry) => entry.team === teamNumber).length >= 2) {
+    const teamSize = getTeamSizeForMode(room.mode || '2v2');
+    if (room.players.filter((entry) => entry.team === teamNumber).length >= teamSize) {
       socket.emit('join-error', 'Ese equipo ya está completo.');
       return;
     }
@@ -652,7 +755,8 @@ io.on('connection', (socket) => {
     player.team = teamNumber;
     player.ready = true;
 
-    if (room.players.length === 4 && room.players.every((entry) => entry.team !== null && entry.role !== null)) {
+    const requiredPlayers = getRequiredPlayersForMode(room.mode || '2v2');
+    if (room.players.length === requiredPlayers && room.players.every((entry) => entry.team !== null && entry.role !== null)) {
       startGame(room);
     }
 
@@ -666,9 +770,24 @@ io.on('connection', (socket) => {
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.team === null || player.role !== null || !['mandador', 'mandado'].includes(role)) return;
 
+    const teamPlayers = room.players.filter((entry) => entry.team === player.team);
+    const mandadorCount = teamPlayers.filter((entry) => entry.role === 'mandador').length;
+    const mandadoCount = teamPlayers.filter((entry) => entry.role === 'mandado').length;
+
+    if (role === 'mandador' && mandadorCount >= 1) {
+      socket.emit('join-error', 'Ese equipo ya tiene un mandador.');
+      return;
+    }
+
+    if (role === 'mandado' && mandadoCount >= getMandadoLimitForMode(room.mode || '2v2')) {
+      socket.emit('join-error', 'Ese equipo ya tiene los mandados completos.');
+      return;
+    }
+
     player.role = role;
 
-    if (room.players.length === 4 && room.players.every((entry) => entry.team !== null && entry.role !== null)) {
+    const requiredPlayers = getRequiredPlayersForMode(room.mode || '2v2');
+    if (room.players.length === requiredPlayers && room.players.every((entry) => entry.team !== null && entry.role !== null)) {
       startGame(room);
     }
 
@@ -731,7 +850,8 @@ io.on('connection', (socket) => {
     }
 
     const currentIndex = room.game.turnOrder.indexOf(socket.id);
-    if (room.game.playedCards.length === 4) {
+    const trickSize = room.game.turnOrder.length || getModeConfig(room.mode || '2v2').trickSize;
+    if (room.game.playedCards.length >= trickSize) {
       const gameAtTrickEnd = room.game;
       room.game.status = 'trick-result';
       room.game.turnPlayerId = null;
@@ -796,7 +916,10 @@ io.on('connection', (socket) => {
 
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
-    if (!room || !room.game || room.game.status === 'tumbo' || room.game.status !== 'playing' || room.game.pendingBet || room.game.betUsedThisRound) return;
+    if (!room || !room.game || room.game.status === 'tumbo' || room.game.status !== 'playing' || room.game.betUsedThisRound) return;
+    
+    // Bloquear si hay envite pendiente sin aceptar
+    if (room.game.pendingBet && !room.game.pendingBet.accepted) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.role !== 'mandador' || player.team === null) return;
@@ -819,6 +942,7 @@ io.on('connection', (socket) => {
       previousLevel: null,
       accepted: null
     };
+    room.game.lastBetTeam = player.team; // Bloquear que el mismo team envíe de nuevo
     room.game.nextBetLevel = betValue === 4 ? 7
       : betValue === 7 ? 9
         : betValue === 9 ? 'chico-fuera' : null;
@@ -853,6 +977,7 @@ io.on('connection', (socket) => {
           previousLevel,
           accepted: null
         };
+        room.game.lastBetTeam = player.team; // Bloquear que el mismo team suba de nuevo
         room.game.nextBetLevel = candidateLevel === 7 ? 9
           : candidateLevel === 9 ? 'chico-fuera' : null;
         room.game.history.push({
@@ -871,60 +996,43 @@ io.on('connection', (socket) => {
       const rejectedBet = room.game.pendingBet;
       const winningTeam = rejectedBet.challengerTeam;
       const awardedLevel = rejectedBet.previousLevel ?? rejectedBet.level;
+      const awardedPoints = awardedLevel === 'chico-fuera' ? 1 : Number(awardedLevel);
 
-      if (rejectedBet.previousLevel === null && rejectedBet.level === 4) {
-        room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + 2, 11);
-        room.game.roundAward = {
-          team: winningTeam,
-          points: 2,
-          chico: false
-        };
-        room.game.history.push({
-          envio: false,
-          team: winningTeam,
-          rejectedBy: player.team,
-          level: awardedLevel,
-          reason: 'abandono',
-          pointsAwarded: 2,
-          message: `El equipo ${player.team === 0 ? 'A' : 'B'} rechaza el primer envío y abandona la ronda; el equipo ${winningTeam === 0 ? 'A' : 'B'} gana 2 piedras.`
-        });
-        room.game.pendingBet = null;
-        room.game.nextBetLevel = null;
-        room.game.lastBetTeam = null;
-        notifyRoom(room);
-        return;
-      }
-
-      room.game.roundAward = {
-        team: winningTeam,
-        points: awardedLevel === 'chico-fuera' ? 1 : Number(awardedLevel),
-        chico: false
-      };
+      // Suma puntos al ganador inmediatamente
+      room.game.scores[winningTeam] = Math.min((room.game.scores[winningTeam] || 0) + awardedPoints, 11);
+      room.game.lastBetTeam = winningTeam; // Actualizar equipo que propuso
+      
       room.game.history.push({
         envio: false,
         team: winningTeam,
         rejectedBy: player.team,
         level: awardedLevel,
-        message: `El envío se rechaza y el equipo ${winningTeam === 0 ? 'A' : 'B'} gana los puntos del valor ${awardedLevel}.`
+        pointsAwarded: awardedPoints,
+        message: `El envío a ${awardedLevel} se rechaza y el equipo ${winningTeam === 0 ? 'A' : 'B'} gana ${awardedPoints} piedra${awardedPoints > 1 ? 's' : ''}.`
       });
+      
       room.game.pendingBet = null;
       room.game.nextBetLevel = null;
+      room.game.betUsedThisRound = true;
+      
+      // Reparte cartas nuevas e incrementa ronda
+      reshuffleRound(room);
+      room.game.turnPlayerId = room.game.turnOrder?.[0] || room.players[0].id;
       notifyRoom(room);
       return;
     }
 
+    // ACEPTA envite: mantener pendingBet con accepted = true hasta fin de ronda
     room.game.pendingBet.accepted = true;
     const senderTeam = room.game.pendingBet.challengerTeam;
-    room.game.roundAward = {
-      team: null,
-      points: room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level),
-      chico: false
-    };
-    room.game.lastBetTeam = senderTeam;
+    // Limpiar lastBetTeam para permitir que el proponente pueda subir después
+    room.game.lastBetTeam = null;
     room.game.nextBetLevel = room.game.pendingBet.level === 4 ? 7
       : room.game.pendingBet.level === 7 ? 9
         : room.game.pendingBet.level === 9 ? 'chico-fuera' : null;
 
+    // NO setear roundAward aquí, se usará en awardStoneForRound
+    // NO setear pendingBet = null, se mantiene para resolver al fin de ronda
     room.game.history.push({
       envio: true,
       team: senderTeam,
@@ -932,7 +1040,7 @@ io.on('connection', (socket) => {
       level: room.game.pendingBet.level,
       message: 'El envío ha sido aceptado y se liquidará al terminar la ronda.'
     });
-    room.game.pendingBet = null;
+    
     notifyRoom(room);
   });
 
@@ -949,10 +1057,10 @@ io.on('connection', (socket) => {
     room.game.pendingTumbo = false;
 
     if (accept === false) {
+      // Rechaza tumbo: equipo contrario suma 1 piedra, se reparten cartas
       const otherTeam = 1 - tumboTeam;
       room.game.scores[otherTeam] = Math.min((room.game.scores[otherTeam] || 0) + 1, 11);
       room.game.tumboTeam = null;
-      room.game.pendingTumbo = false;
       room.game.challengeTeam = null;
       room.game.history.push({
         tumbo: false,
@@ -967,43 +1075,19 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const opposingTeam = 1 - tumboTeam;
+    // Acepta tumbo: se juega hasta ganar 2 de 3 manos
+    room.game.pendingTumbo = false;
     room.game.challengeTeam = tumboTeam;
     room.game.history.push({
       tumbo: true,
       team: tumboTeam,
       decision: 'acepta',
-      message: 'El equipo en tumbo acepta jugar y define el chico.'
+      message: 'El equipo en tumbo acepta jugar. Se juega hasta ganar 2 de 3 manos.'
     });
 
-    const tumboScore = room.game.scores[tumboTeam] || 0;
-    const canWinChico = tumboScore >= 11;
-    if (canWinChico) {
-      room.game.chicos[tumboTeam] += 1;
-      room.game.scores = { 0: 0, 1: 0 };
-      room.game.history.push({
-        chico: true,
-        team: tumboTeam,
-        chicos: { ...room.game.chicos },
-        scoreAfter: { ...room.game.scores },
-        scoreBefore: tumboScore,
-        message: tumboScore > 13
-          ? `El equipo ${tumboTeam === 0 ? 'A' : 'B'} supera 13 piedras, reinicia a 0 y suma 1 chico.`
-          : `El equipo ${tumboTeam === 0 ? 'A' : 'B'} gana el tumbo con ${tumboScore} piedras y suma 1 chico.`
-      });
-      if (room.game.chicos[tumboTeam] >= 3) {
-        room.game.status = 'finished';
-        room.game.finalWinner = tumboTeam;
-        notifyRoom(room);
-        return;
-      }
-    } else {
-      room.game.scores[opposingTeam] = Math.min(room.game.scores[opposingTeam] + 3, 11);
-    }
-
+    // Continúa jugando desde donde estaba, contando manos hasta ganar 2
     room.game.status = 'playing';
-    room.game.tumboTeam = null;
-    room.game.pendingTumbo = false;
+    room.game.tumboTeam = tumboTeam; // Se mantiene para saber que estamos en tumbo
     room.game.turnPlayerId = room.game.turnOrder?.[0] || room.players[0].id;
     notifyRoom(room);
   });
@@ -1078,7 +1162,8 @@ io.on('connection', (socket) => {
       room.players[0].isHost = true;
     }
 
-    if (!room.game && room.players.length === 4 && room.players.every((player) => player.team !== null && player.role !== null)) {
+    if (!room.game && room.players.length === getRequiredPlayersForMode(room.mode || '2v2')
+      && room.players.every((player) => player.team !== null && player.role !== null)) {
       startGame(room);
     }
 

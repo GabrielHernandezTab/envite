@@ -6,6 +6,7 @@ const elements = {
   roomCodeBadge: document.getElementById('room-code-badge'),
   playerName: document.getElementById('player-name'),
   roomCode: document.getElementById('room-code'),
+  gameModeSelect: document.getElementById('game-mode'),
   createRoomBtn: document.getElementById('create-room-btn'),
   joinRoomBtn: document.getElementById('join-room-btn'),
   spectateBtn: document.getElementById('spectate-btn'),
@@ -199,13 +200,20 @@ function renderSeatPositions(players) {
     { className: 'seat seat-top-left', angle: 'top-left' },
     { className: 'seat seat-top-right', angle: 'top-right' },
     { className: 'seat seat-bottom-left', angle: 'bottom-left' },
-    { className: 'seat seat-bottom-right', angle: 'bottom-right' }
+    { className: 'seat seat-bottom-right', angle: 'bottom-right' },
+    { className: 'seat seat-top-left', angle: 'top-left' },
+    { className: 'seat seat-top-right', angle: 'top-right' }
   ];
 
-  reserved.slice(0, 4).forEach((player, index) => {
+  reserved.slice(0, Math.max(4, reserved.length)).forEach((player, index) => {
     const seat = document.createElement('div');
-    const seatDef = seatPositions[index] || seatPositions[0];
+    const seatDef = seatPositions[index] || seatPositions[index % seatPositions.length];
     seat.className = `seat ${seatDef.className}`;
+    if (index >= 4) {
+      seat.style.top = index === 4 ? '18%' : '18%';
+      seat.style.left = index === 4 ? '50%' : '72%';
+      seat.style.transform = 'translateX(-50%)';
+    }
     seat.innerHTML = `
       <div class="seat-avatar">${(player.name || 'Libre').charAt(0).toUpperCase()}</div>
       <div class="seat-name">${player.name || 'Libre'}</div>
@@ -223,9 +231,10 @@ function renderPlayers(players, room) {
 
   const teamA = players.filter((player) => player.team === 0);
   const teamB = players.filter((player) => player.team === 1);
+  const teamSize = getTeamSizeForMode(room?.mode || '2v2');
 
-  elements.teamACount.textContent = `${teamA.length} / 2`;
-  elements.teamBCount.textContent = `${teamB.length} / 2`;
+  elements.teamACount.textContent = `${teamA.length} / ${teamSize}`;
+  elements.teamBCount.textContent = `${teamB.length} / ${teamSize}`;
 
   [teamA, teamB].forEach((teamPlayers, teamIndex) => {
     const list = teamIndex === 0 ? elements.teamAPlayers : elements.teamBPlayers;
@@ -357,8 +366,20 @@ function renderTeamChat(messages, player) {
   elements.teamChatMessages.scrollTop = elements.teamChatMessages.scrollHeight;
 }
 
+function getRequiredPlayersForMode(mode) {
+  return mode === '3v3' ? 6 : 4;
+}
+
+function getTeamSizeForMode(mode) {
+  return mode === '3v3' ? 3 : 2;
+}
+
 function updateRoom(room) {
   if (!room) return;
+
+  const mode = room.mode || '2v2';
+  const requiredPlayers = getRequiredPlayersForMode(mode);
+  const teamSize = getTeamSizeForMode(mode);
 
   currentRoomCode = room.code;
   elements.roomCodeBadge.textContent = `Sala: ${room.code}`;
@@ -458,8 +479,8 @@ function updateRoom(room) {
       elements.gameFinishedModal.classList.add('hidden');
       const team = room.game.tumboTeam === 0 ? 'Equipo A' : 'Equipo B';
       elements.resultText.textContent = `${team} está en tumbo: tiene 11 piedras y debe decidir si acepta o se achica.`;
-    } else if (room.players.length < 4) {
-      elements.resultText.textContent = 'Esperando a que haya 4 jugadores para empezar.';
+    } else if (room.players.length < requiredPlayers) {
+      elements.resultText.textContent = `Esperando a que haya ${requiredPlayers} jugadores para empezar.`;
     } else if (room.players.some((player) => player.team === null)) {
       elements.resultText.textContent = 'Cada jugador debe elegir su equipo.';
     } else {
@@ -472,9 +493,9 @@ function updateRoom(room) {
     elements.tumboPanel.classList.add('hidden');
     elements.statusText.textContent = 'Esperando jugadores';
     elements.roundText.textContent = 'Ronda 1 · hasta 3 chicos';
-    elements.resultText.textContent = room.players.length >= 4
+    elements.resultText.textContent = room.players.length >= requiredPlayers
       ? 'Todos los jugadores están en la sala. Elige equipo para empezar.'
-      : 'Necesitas 4 jugadores para iniciar la partida.';
+      : `Necesitas ${requiredPlayers} jugadores para iniciar la partida.`;
   }
 
   const isRoomOwner = room.ownerId === myPlayerId;
@@ -483,10 +504,15 @@ function updateRoom(room) {
   elements.renounceRoundBtn.style.display = room.game?.status === 'playing' && myPlayer?.role === 'mandador' ? 'inline-flex' : 'none';
   elements.returnMenuBtn.style.display = 'inline-flex';
 
+  const teamAFull = room.players.filter((player) => player.team === 0).length >= teamSize;
+  const teamBFull = room.players.filter((player) => player.team === 1).length >= teamSize;
+
   elements.teamABtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
   elements.teamBBtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
-  elements.teamABtn.disabled = room.players.filter((player) => player.team === 0).length >= 2;
-  elements.teamBBtn.disabled = room.players.filter((player) => player.team === 1).length >= 2;
+  elements.teamABtn.disabled = teamAFull;
+  elements.teamBBtn.disabled = teamBFull;
+  elements.teamABtn.title = teamAFull ? 'Este equipo ya está completo' : 'Seleccionar equipo A';
+  elements.teamBBtn.title = teamBFull ? 'Este equipo ya está completo' : 'Seleccionar equipo B';
 
   if (!room.code) {
     elements.setupBox.classList.remove('hidden');
@@ -499,7 +525,8 @@ function updateRoom(room) {
 
 function createRoom() {
   const name = elements.playerName.value.trim() || 'Jugador';
-  socket.emit('create-room', { name });
+  const mode = elements.gameModeSelect.value === '3v3' ? '3v3' : '2v2';
+  socket.emit('create-room', { name, mode });
 }
 
 function joinRoom() {
