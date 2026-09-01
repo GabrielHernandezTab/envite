@@ -289,7 +289,44 @@ function startGame(room) {
   notifyRoom(room);
 }
 
-function compareCards(cardA, cardB, trumpSuit) {
+function compareCards(cardA, cardB, trumpSuit, mode = '2v2', firstCardSuit = null) {
+  // En 3v3, las 3 primeras cartas son triunfos globales
+  if (mode === '3v3') {
+    const aIsGlobalTriumph = isGlobalTriumph3v3(cardA);
+    const bIsGlobalTriumph = isGlobalTriumph3v3(cardB);
+    
+    if (aIsGlobalTriumph && !bIsGlobalTriumph) return 1;
+    if (!aIsGlobalTriumph && bIsGlobalTriumph) return -1;
+    if (aIsGlobalTriumph && bIsGlobalTriumph) {
+      return getCardPriority3v3(cardA, trumpSuit) - getCardPriority3v3(cardB, trumpSuit);
+    }
+    
+    // No son triunfos globales, comprobar si son del palo virado
+    const aTrump = cardA.suit === trumpSuit;
+    const bTrump = cardB.suit === trumpSuit;
+    
+    if (aTrump && !bTrump) return 1;
+    if (!aTrump && bTrump) return -1;
+    if (aTrump && bTrump) {
+      return getCardPriority3v3(cardA, trumpSuit) - getCardPriority3v3(cardB, trumpSuit);
+    }
+    
+    // Ni globales ni palo virado: comparar por palo de inicio
+    const aFollowsSuit = cardA.suit === firstCardSuit;
+    const bFollowsSuit = cardB.suit === firstCardSuit;
+    
+    if (aFollowsSuit && !bFollowsSuit) return 1;    // A sigue el palo, B no
+    if (!aFollowsSuit && bFollowsSuit) return -1;   // B sigue el palo, A no
+    if (aFollowsSuit && bFollowsSuit) {
+      // Ambas siguen el palo: comparar por rank
+      return rankCompare(cardA.rank) - rankCompare(cardB.rank);
+    }
+    
+    // Ninguna sigue el palo: comparar por rank igual
+    return rankCompare(cardA.rank) - rankCompare(cardB.rank);
+  }
+
+  // En 2v2, usar lógica estándar
   const aTrump = cardA.suit === trumpSuit;
   const bTrump = cardB.suit === trumpSuit;
 
@@ -300,6 +337,48 @@ function compareCards(cardA, cardB, trumpSuit) {
   }
   if (cardA.suit !== cardB.suit) return -1;
   return getCardPriority(cardA, trumpSuit) - getCardPriority(cardB, trumpSuit);
+}
+
+function rankCompare(rank) {
+  // Orden de ranks: 12, 11, 10, 1, 7, 6, 5, 4, 3, 2
+  // (mismo orden que en palo virado)
+  const rankOrder = { 12: 50, 11: 49, 10: 48, 1: 47, 7: 46, 6: 45, 5: 44, 4: 43, 3: 42, 2: 41 };
+  return rankOrder[rank] ?? 0;
+}
+
+function isGlobalTriumph3v3(card) {
+  // Las 3 cartas máximas en 3v3 son globales (no dependen del palo virado)
+  // 1. Tres de bastos
+  // 2. Caballo (11) de bastos
+  // 3. Perica (10 de oros)
+  return (card.rank === 3 && card.suit === 'bastos') ||
+         (card.rank === 11 && card.suit === 'bastos') ||
+         (card.rank === 10 && card.suit === 'oros');
+}
+
+function getCardPriority3v3(card, trumpSuit) {
+  // Prioridades para 3v3
+  // 1. Tres de bastos = 100
+  // 2. Caballo (11) de bastos = 99
+  // 3. Perica (10 de oros) = 98
+  // 4. Malilla (2 del palo virado) = 97
+  // 5. Resto del palo virado: 12, 11, 10, 1, 7, 6, 5, 4, 3 = 50-40
+  
+  if (card.rank === 3 && card.suit === 'bastos') return 100;
+  if (card.rank === 11 && card.suit === 'bastos') return 99;
+  if (card.rank === 10 && card.suit === 'oros') return 98;
+  
+  // Malilla (2 del palo virado)
+  if (card.rank === 2 && card.suit === trumpSuit) return 97;
+  
+  // Si es del palo virado, dar prioridad según orden: 12, 11, 10, 1, 7, 6, 5, 4, 3
+  if (card.suit === trumpSuit) {
+    const order3v3 = { 12: 50, 11: 49, 10: 48, 1: 47, 7: 46, 6: 45, 5: 44, 4: 43, 3: 42 };
+    return order3v3[card.rank] ?? 0;
+  }
+  
+  // No es del palo virado, prioridad muy baja
+  return 0;
 }
 
 function getCardPriority(card, trumpSuit) {
@@ -486,10 +565,11 @@ function resolveTrick(room) {
   const trumpSuit = room.game.visibleCard.suit;
   const visiblePlayed = played.filter((entry) => !entry.faceDown);
 
+  const firstCardSuit = visiblePlayed[0]?.card.suit; // Palo de la primera carta jugada
   const winnerEntry = visiblePlayed.reduce((winner, entry) => {
     const currentCard = entry.card;
     const winnerCard = winner.card;
-    const comparison = compareCards(currentCard, winnerCard, trumpSuit);
+    const comparison = compareCards(currentCard, winnerCard, trumpSuit, room.mode || '2v2', firstCardSuit);
     return comparison > 0 ? entry : winner;
   }, visiblePlayed[0] || played[0]);
 
