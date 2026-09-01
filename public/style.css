@@ -195,7 +195,8 @@ input {
 .game-box {
   display: grid;
   gap: 18px;
-  padding-right: 350px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .status-row {
@@ -291,9 +292,11 @@ input {
 
 .play-area {
   display: grid;
-  grid-template-columns: minmax(0, 1.65fr) minmax(260px, 0.75fr);
+  grid-template-columns: minmax(0, 1.8fr) minmax(240px, 0.8fr);
   gap: 16px;
   align-items: stretch;
+  width: 100%;
+  max-width: 100%;
 }
 
 .play-side {
