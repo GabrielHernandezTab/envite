@@ -6,7 +6,7 @@ const elements = {
   roomCodeBadge: document.getElementById('room-code-badge'),
   playerName: document.getElementById('player-name'),
   roomCode: document.getElementById('room-code'),
-  gameModeSelect: document.getElementById('game-mode'),
+  gameModeSelect: document.querySelector('input[name="game-mode"]'),
   createRoomBtn: document.getElementById('create-room-btn'),
   joinRoomBtn: document.getElementById('join-room-btn'),
   spectateBtn: document.getElementById('spectate-btn'),

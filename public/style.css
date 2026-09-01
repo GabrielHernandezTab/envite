@@ -26,9 +26,10 @@ html, body {
   margin: 0;
   min-height: 100vh;
   font-family: Arial, sans-serif;
-  background:
-    radial-gradient(circle at top, rgba(18, 78, 92, 0.45), transparent 35%),
-    linear-gradient(135deg, #041118, #0b222d 38%, #0f303d);
+  background-image: url('https://media.istockphoto.com/id/1483524024/es/foto/mujer-irreconocible-juega-a-las-cartas-en-una-playa-en-verano-baraja-de-naipes-espa%C3%B1ola-veraneo.jpg?s=612x612&w=0&k=20&c=7if7YJBIT_KX_K6WxJRO8fw6lWnjFDDtekwsvCoefVQ=');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   color: var(--text);
 }
 
@@ -36,6 +37,13 @@ body {
   display: grid;
   place-items: center;
   padding: 24px;
+  background:
+    radial-gradient(circle at top, rgba(18, 78, 92, 0.7), transparent 40%),
+    linear-gradient(135deg, rgba(4, 17, 24, 0.85), rgba(11, 34, 45, 0.85) 38%, rgba(15, 48, 61, 0.85)),
+    url('https://media.istockphoto.com/id/1483524024/es/foto/mujer-irreconocible-juega-a-las-cartas-en-una-playa-en-verano-baraja-de-naipes-espa%C3%B1ola-veraneo.jpg?s=612x612&w=0&k=20&c=7if7YJBIT_KX_K6WxJRO8fw6lWnjFDDtekwsvCoefVQ=');
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-attachment: fixed, fixed, fixed;
 }
 
 button {
@@ -152,6 +160,122 @@ input {
   padding: 0 14px;
   color: var(--text);
   font-size: 1rem;
+}
+
+/* Game mode selector */
+.game-mode-selector {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.game-mode-selector input {
+  display: none;
+}
+
+.mode-button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 16px;
+  border: 2px solid rgba(255, 191, 71, 0.2);
+  background: linear-gradient(135deg, rgba(255, 191, 71, 0.04), rgba(255, 138, 61, 0.02));
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: var(--muted);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255, 191, 71, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mode-button:hover {
+  border-color: rgba(255, 191, 71, 0.4);
+  background: linear-gradient(135deg, rgba(255, 191, 71, 0.08), rgba(255, 138, 61, 0.06));
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 191, 71, 0.15);
+}
+
+.mode-button:hover::before {
+  opacity: 1;
+}
+
+.mode-button .mode-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mode-button .mode-name {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.mode-button .mode-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.game-mode-selector input:checked + .mode-button {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(255, 191, 71, 0.2), rgba(255, 138, 61, 0.15));
+  color: var(--primary);
+  box-shadow: 0 0 28px rgba(255, 191, 71, 0.3), inset 0 0 20px rgba(255, 191, 71, 0.08);
+  transform: translateY(-4px) scale(1.02);
+}
+
+.game-mode-selector input:checked + .mode-button::before {
+  opacity: 1;
+  animation: pulse-glow 0.6s ease-out;
+}
+
+.game-mode-selector input:checked + .mode-button .mode-name {
+  color: var(--primary);
+  text-shadow: 0 0 10px rgba(255, 191, 71, 0.5);
+}
+
+.game-mode-selector input:checked + .mode-button .mode-desc {
+  color: rgba(255, 191, 71, 0.8);
+}
+
+.game-mode-selector input:checked + .mode-button .mode-icon {
+  transform: scale(1.25) rotateZ(5deg);
+  animation: icon-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes pulse-glow {
+  0% { 
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% { 
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+
+@keyframes icon-bounce {
+  0% { transform: scale(1) rotateZ(0deg) translateY(0); }
+  50% { transform: scale(1.35) rotateZ(5deg) translateY(-4px); }
+  100% { transform: scale(1.25) rotateZ(5deg) translateY(0); }
 }
 
 .buttons-row,

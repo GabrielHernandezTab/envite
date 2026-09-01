@@ -32,10 +32,21 @@
 
           <div class="field">
             <label for="game-mode">Modo de partida</label>
-            <select id="game-mode" aria-label="Selecciona el modo de partida">
-              <option value="2v2">2 vs 2</option>
-              <option value="3v3">3 vs 3</option>
-            </select>
+            <div class="game-mode-selector">
+              <input type="radio" id="mode-2v2" name="game-mode" value="2v2" checked />
+              <label for="mode-2v2" class="mode-button">
+                <span class="mode-icon">👥</span>
+                <span class="mode-name">2 vs 2</span>
+                <span class="mode-desc">4 jugadores</span>
+              </label>
+              
+              <input type="radio" id="mode-3v3" name="game-mode" value="3v3" />
+              <label for="mode-3v3" class="mode-button">
+                <span class="mode-icon">👨‍👩‍👦</span>
+                <span class="mode-name">3 vs 3</span>
+                <span class="mode-desc">6 jugadores</span>
+              </label>
+            </div>
           </div>
 
           <div class="buttons-row">
@@ -225,6 +236,9 @@
                 <option value="malilla">malilla</option>
                 <option value="ciego">ciego</option>
                 <option value="rey">rey</option>
+                <option value="3 de bastos">3 de bastos</option>
+                <option value="11 de bastos">11 de bastos</option>
+                <option value="10 de oros">10 de oros</option>
               </select>
               <button type="submit">Enviar</button>
             </form>
