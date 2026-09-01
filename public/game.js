@@ -579,7 +579,7 @@ elements.playAgainBtn.addEventListener('click', () => {
 elements.teamChatForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const text = String(elements.teamChatInput.value || '').trim().toLowerCase();
-  const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'rey'];
+  const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'ciego', 'rey'];
   if (!allowedMessages.includes(text)) return;
   socket.emit('team-chat', { text });
   elements.teamChatInput.value = '';

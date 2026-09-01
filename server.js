@@ -279,11 +279,13 @@ function maybeAwardChico(room, team) {
 
   if (room.game.handWins[team] >= 2 && room.game.handWins[other] < 2) {
     room.game.chicos[team] += 1;
+    room.game.scores = { 0: 0, 1: 0 };
     room.game.handWins = { 0: 0, 1: 0 };
     room.game.history.push({
       chico: true,
       team,
-      chicos: { ...room.game.chicos }
+      chicos: { ...room.game.chicos },
+      scoreAfter: { ...room.game.scores }
     });
 
     if (room.game.chicos[team] >= 3) {
@@ -318,8 +320,8 @@ function awardStoneForRound(room, team) {
     room.game.scores[team] = applyProgress(room.game.scores[team], 1);
     room.game.scores[opponentTeam] = applyProgress(room.game.scores[opponentTeam], 1);
 
-    const teamWinsChico = room.game.scores[team] === 0 || room.game.scores[team] === 11;
-    const opponentWinsChico = room.game.scores[opponentTeam] === 0 || room.game.scores[opponentTeam] === 11;
+    const teamWinsChico = room.game.scores[team] === 0;
+    const opponentWinsChico = room.game.scores[opponentTeam] === 0;
     if (teamWinsChico) room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
     if (opponentWinsChico) room.game.chicos[opponentTeam] = Math.min((room.game.chicos[opponentTeam] || 0) + 1, 3);
 
@@ -346,15 +348,16 @@ function awardStoneForRound(room, team) {
       room.game.scores[team] = nextScore;
     }
 
-    if (nextScore >= 13 || nextScore === 11) {
+    if (nextScore >= 13) {
       room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
+      room.game.scores = { 0: 0, 1: 0 };
     }
 
     room.game.history.push({
       roundWinner: team,
       reason: '2 de 3 manos',
       pointsAwarded: points,
-      chicoAwarded: nextScore >= 13 || nextScore === 11,
+      chicoAwarded: nextScore >= 13,
       scoreAfter: { ...room.game.scores },
       handWins: { ...room.game.handWins }
     });
@@ -453,6 +456,9 @@ function reshuffleRound(room) {
   room.game.handWins = { 0: 0, 1: 0 };
   room.game.roundAward = { team: null, points: 0, chico: false };
   room.game.pendingBet = null;
+  room.game.pendingTumbo = false;
+  room.game.tumboTeam = null;
+  room.game.challengeTeam = null;
   room.game.nextBetLevel = 4;
   room.game.lastBetTeam = null;
   room.game.betUsedThisRound = false;
@@ -674,7 +680,7 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
-    const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'rey'];
+    const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'ciego', 'rey'];
     const messageText = String(text || '').trim().toLowerCase();
     if (!player || player.team === null || !allowedMessages.includes(messageText)) return;
 
@@ -790,7 +796,7 @@ io.on('connection', (socket) => {
 
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
-    if (!room || !room.game || room.game.status !== 'playing' || room.game.pendingBet || room.game.betUsedThisRound) return;
+    if (!room || !room.game || room.game.status === 'tumbo' || room.game.status !== 'playing' || room.game.pendingBet || room.game.betUsedThisRound) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.role !== 'mandador' || player.team === null) return;
@@ -973,8 +979,8 @@ io.on('connection', (socket) => {
     const tumboScore = room.game.scores[tumboTeam] || 0;
     const canWinChico = tumboScore >= 11;
     if (canWinChico) {
-      room.game.scores[tumboTeam] = 0;
       room.game.chicos[tumboTeam] += 1;
+      room.game.scores = { 0: 0, 1: 0 };
       room.game.history.push({
         chico: true,
         team: tumboTeam,
