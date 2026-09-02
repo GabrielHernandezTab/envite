@@ -516,6 +516,12 @@ input {
   transform: translateY(16px);
 }
 
+#visible-card.card-face {
+  width: 104px;
+  height: 160px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+}
+
 .table-info {
   display: grid;
   grid-template-columns: 1fr;
@@ -694,19 +700,12 @@ input {
 }
 
 .team-chat-panel {
-  position: fixed;
-  right: 24px;
-  top: 180px;
-  width: min(320px, calc(100vw - 48px));
-  max-height: calc(100vh - 220px);
   display: grid;
   gap: 10px;
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: rgba(17, 38, 47, 0.96);
-  box-shadow: 0 22px 40px rgba(0,0,0,0.28);
-  z-index: 10;
+  background: rgba(255,255,255,0.03);
 }
 
 .team-chat-messages {
@@ -832,102 +831,44 @@ input {
 }
 
 .card-face {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  text-align: center;
-  padding: 8px 8px 10px;
   width: 100%;
   height: 100%;
   border-radius: 15px;
-  background: linear-gradient(180deg, #fffdfd, #eef3fb);
+  overflow: hidden;
+  background: #fff;
+  display: block;
 }
 
-.card-face.red {
-  color: var(--red-suit);
+.card-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  -webkit-user-drag: none;
 }
 
-.card-face.black {
-  color: var(--black-suit);
+.suit-svg {
+  width: clamp(1.6rem, 3.2vw, 2.6rem);
+  height: clamp(1.6rem, 3.2vw, 2.6rem);
+  filter: drop-shadow(0 2px 1px rgba(0,0,0,0.12));
 }
 
-.card-face.gold-suit {
-  color: #b97808;
+.mini-card-icon {
+  display: inline-flex;
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: -0.1em;
 }
 
-.card-face.red-suit {
-  color: #bd3046;
+.mini-card-icon .suit-svg {
+  width: 100%;
+  height: 100%;
+  filter: none;
 }
 
-.card-face.steel-suit {
-  color: #394b5b;
-}
-
-.card-face.wood-suit {
-  color: #86512d;
-}
-
-.card-face .card-header,
-.card-face .card-footer {
-  display: flex;
-  align-items: center;
-  font-size: 0.75rem;
-  font-weight: 800;
-  padding: 0 2px;
-}
-
-.card-face .card-header {
-  justify-content: flex-start;
-}
-
-.card-face .card-footer {
-  justify-content: center;
-}
-
-.card-face .card-symbol {
-  font-size: 1rem;
-  line-height: 1;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 8px;
-  font-family: Georgia, serif;
-  text-shadow: 0 2px 0 rgba(0,0,0,0.08);
-}
-
-.suit-icon {
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1;
-}
-
-.card-face .suit-symbol.oros {
-  font-size: clamp(1.8rem, 3vw, 2.8rem);
-  text-shadow: 0 1px 0 #f7d56c, 0 3px 5px rgba(107, 66, 0, 0.25);
-}
-
-.card-face .suit-symbol.copas {
-  font-size: clamp(2rem, 3.2vw, 3rem);
-  transform: scaleX(1.25) translateY(-2px);
-}
-
-.card-face .suit-symbol.espadas {
-  font-size: clamp(1.8rem, 3vw, 2.7rem);
-  transform: rotate(45deg);
-}
-
-.card-face .suit-symbol.bastos {
-  font-size: clamp(1.8rem, 3vw, 2.7rem);
-}
-
-.card-face .card-number {
-  font-size: clamp(1.2rem, 2vw, 2rem);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-}
-
-.card-face .card-suit-name {
-  font-size: 0.67rem;
-  text-transform: lowercase;
-  opacity: 0.9;
+.mini-card-icon.steel-suit,
+.mini-card-icon.wood-suit {
+  filter: brightness(1.7);
 }
 
 .card-btn.disabled {
@@ -957,17 +898,6 @@ input {
 }
 
 @media (max-width: 760px) {
-  .game-box {
-    padding-right: 0;
-  }
-
-  .team-chat-panel {
-    position: static;
-    width: 100%;
-    max-height: 240px;
-    margin-top: 8px;
-  }
-
   .hud-grid,
   .scoreboard,
   .team-board {

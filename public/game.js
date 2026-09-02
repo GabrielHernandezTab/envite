@@ -1,5 +1,11 @@
 const socket = io();
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]
+  ));
+}
+
 const elements = {
   setupBox: document.getElementById('setup-box'),
   gameBox: document.getElementById('game-box'),
@@ -77,41 +83,53 @@ function getTeamLabel(team) {
   return 'Sin equipo';
 }
 
+const SUIT_ICONS = {
+  oros: '<svg viewBox="0 0 24 24" class="suit-svg"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/></svg>',
+  copas: '<svg viewBox="0 0 24 24" class="suit-svg"><path d="M5.5 4 Q5.5 12.5 12 12.5 Q18.5 12.5 18.5 4 Z" fill="currentColor"/><rect x="11.1" y="12.5" width="1.8" height="5.3" fill="currentColor"/><path d="M7.3 20 Q12 18 16.7 20 L16.7 21.2 Q12 19.5 7.3 21.2 Z" fill="currentColor"/></svg>',
+  espadas: '<svg viewBox="0 0 24 24" class="suit-svg"><path d="M12 1.6 L14 6.2 L13.1 15.6 L10.9 15.6 L10 6.2 Z" fill="currentColor"/><rect x="6.8" y="14.8" width="10.4" height="1.7" rx="0.85" fill="currentColor"/><rect x="11.15" y="16.5" width="1.7" height="4.3" fill="currentColor"/><circle cx="12" cy="21.4" r="1.35" fill="currentColor"/></svg>',
+  bastos: '<svg viewBox="0 0 24 24" class="suit-svg"><rect x="10.35" y="3.6" width="3.3" height="17" rx="1.65" fill="currentColor"/><circle cx="12" cy="7.6" r="2.15" fill="currentColor"/><circle cx="12" cy="12.6" r="2.35" fill="currentColor"/><circle cx="12" cy="17.6" r="2" fill="currentColor"/></svg>'
+};
+
+const COURT_NAMES = { 10: 'Sota', 11: 'Caballo', 12: 'Rey' };
+
 function getSuitMeta(suit) {
   const map = {
-    oros: { short: 'O', symbol: '♦', symbolClass: 'oros', className: 'red', label: 'oros' },
-    copas: { short: 'C', symbol: '♥', symbolClass: 'copas', className: 'red', label: 'copas' },
-    espadas: { short: 'E', symbol: '♠', symbolClass: 'espadas', className: 'black', label: 'espadas' },
-    bastos: { short: 'B', symbol: '♣', symbolClass: 'bastos', className: 'black', label: 'bastos' }
+    oros: { icon: SUIT_ICONS.oros, symbolClass: 'oros', className: 'gold-suit', label: 'oros' },
+    copas: { icon: SUIT_ICONS.copas, symbolClass: 'copas', className: 'red-suit', label: 'copas' },
+    espadas: { icon: SUIT_ICONS.espadas, symbolClass: 'espadas', className: 'steel-suit', label: 'espadas' },
+    bastos: { icon: SUIT_ICONS.bastos, symbolClass: 'bastos', className: 'wood-suit', label: 'bastos' }
   };
 
-  return map[suit] || { short: '?', symbol: '?', symbolClass: 'unknown', className: 'black', label: suit };
+  return map[suit] || { icon: SUIT_ICONS.oros, symbolClass: 'unknown', className: 'gold-suit', label: suit };
+}
+
+function getRankDisplay(rank) {
+  if (rank === 1) return 'As';
+  if (COURT_NAMES[rank]) return COURT_NAMES[rank];
+  return String(rank);
+}
+
+// Cartas reales de la baraja española (public/cards), CC BY-SA 3.0 — ver README.
+const CARD_RANK_FILE = { 1: '01', 2: '02', 3: '03', 4: '04', 5: '05', 6: '06', 7: '07', 10: '10', 11: '11', 12: '12' };
+const CARD_SUITS = new Set(['oros', 'copas', 'espadas', 'bastos']);
+
+function getCardImageUrl(card) {
+  if (!card || !CARD_SUITS.has(card.suit) || !CARD_RANK_FILE[card.rank]) {
+    return 'cards/back.png';
+  }
+  return `cards/${card.suit}_${CARD_RANK_FILE[card.rank]}.png`;
 }
 
 function renderCardFace(card, compact = false) {
-  const meta = getSuitMeta(card?.suit || 'oros');
   const el = document.createElement('div');
-  el.className = `card-face ${meta.className}`;
+  el.className = 'card-face';
 
-  const header = document.createElement('div');
-  header.className = 'card-header';
-  header.innerHTML = `<span class="card-number">${card?.label || '-'}</span>`;
-
-  const symbol = document.createElement('div');
-  symbol.className = `card-symbol suit-symbol ${meta.symbolClass}`;
-
-  const suitIcon = document.createElement('span');
-  suitIcon.className = 'suit-icon';
-  suitIcon.textContent = meta.symbol;
-  symbol.appendChild(suitIcon);
-
-  const footer = document.createElement('div');
-  footer.className = 'card-footer';
-  footer.innerHTML = `<span class="card-suit-name">${meta.label}</span>`;
-
-  el.appendChild(header);
-  el.appendChild(symbol);
-  el.appendChild(footer);
+  const img = document.createElement('img');
+  img.className = 'card-image';
+  img.src = getCardImageUrl(card);
+  img.alt = card ? `${getRankDisplay(card.rank)} de ${card.suit}` : 'Carta boca abajo';
+  img.draggable = false;
+  el.appendChild(img);
 
   if (compact) {
     el.style.transform = 'scale(0.85)';
@@ -122,7 +140,7 @@ function renderCardFace(card, compact = false) {
 
 function cardText(card) {
   if (!card) return '-';
-  return `${card.label} de ${card.suit}`;
+  return `${getRankDisplay(card.rank)} de ${card.suit}`;
 }
 
 function renderHand(hand, room) {
@@ -170,11 +188,7 @@ function renderTableCards(playedCards, players) {
     item.className = 'table-card';
 
     const player = players.find((p) => p.id === entry.playerId);
-    const mini = entry.faceDown ? document.createElement('div') : renderCardFace(entry.card, true);
-    if (entry.faceDown) {
-      mini.className = 'card-back';
-      mini.textContent = '?';
-    }
+    const mini = renderCardFace(entry.faceDown ? null : entry.card, true);
     mini.style.width = '50px';
     mini.style.height = '72px';
     mini.style.display = 'inline-block';
@@ -182,7 +196,7 @@ function renderTableCards(playedCards, players) {
     const label = document.createElement('div');
     label.textContent = entry.faceDown
       ? `${player?.name || 'Jugador'}: carta boca abajo`
-      : `${player?.name || 'Jugador'}: ${entry.card.label} de ${entry.card.suit}`;
+      : `${player?.name || 'Jugador'}: ${getRankDisplay(entry.card.rank)} de ${entry.card.suit}`;
     item.appendChild(mini);
     item.appendChild(label);
     elements.tableCards.appendChild(item);
@@ -215,8 +229,8 @@ function renderSeatPositions(players) {
       seat.style.transform = 'translateX(-50%)';
     }
     seat.innerHTML = `
-      <div class="seat-avatar">${(player.name || 'Libre').charAt(0).toUpperCase()}</div>
-      <div class="seat-name">${player.name || 'Libre'}</div>
+      <div class="seat-avatar">${escapeHtml((player.name || 'Libre').charAt(0).toUpperCase())}</div>
+      <div class="seat-name">${escapeHtml(player.name || 'Libre')}</div>
       <div class="seat-team">${player.team === 0 ? 'Equipo A' : player.team === 1 ? 'Equipo B' : 'Esperando'}</div>
     `;
     elements.seatPositions.appendChild(seat);
@@ -251,7 +265,7 @@ function renderPlayers(players, room) {
       const item = document.createElement('div');
       item.className = 'team-player-item';
       item.innerHTML = `
-        <span class="team-player-name">${player.name}</span>
+        <span class="team-player-name">${escapeHtml(player.name)}</span>
         <span class="team-player-role">${player.id === myPlayerId ? 'Tú' : 'Jugador'}</span>
       `;
       list.appendChild(item);
@@ -287,7 +301,7 @@ function renderPlayers(players, room) {
         const mini = document.createElement('span');
         mini.className = 'mini-card';
         const meta = getSuitMeta(cardEntry.suit || 'oros');
-        mini.innerHTML = `<span>${cardEntry.label}</span><span>${meta.symbol}</span>`;
+        mini.innerHTML = `<span>${getRankDisplay(cardEntry.rank)}</span><span class="mini-card-icon ${meta.className}">${meta.icon}</span>`;
         handMini.appendChild(mini);
       });
     } else {
@@ -303,18 +317,10 @@ function renderPlayers(players, room) {
 }
 
 function renderVisibleCard(card) {
-  if (!card) {
-    elements.visibleCard.innerHTML = `
-      <div class="card-header"><span class="card-number">-</span></div>
-      <div class="card-symbol">-</div>
-      <div class="card-footer"><span class="card-suit-name">-</span></div>
-    `;
-    return;
-  }
-
+  elements.visibleCard.innerHTML = '';
   const rendered = renderCardFace(card);
   elements.visibleCard.className = rendered.className;
-  elements.visibleCard.replaceChildren(...rendered.childNodes);
+  elements.visibleCard.append(...rendered.childNodes);
 }
 
 function renderHistory(history, players) {
@@ -336,8 +342,8 @@ function renderHistory(history, players) {
     const handNumber = entry.handWins?.[0] + entry.handWins?.[1] || 1;
     item.innerHTML = `
       <strong>Mano ${handNumber}</strong>
-      <span>${winnerName} · Equipo ${entry.winnerTeam === 0 ? 'A' : 'B'}</span>
-      <span>Ganó con ${entry.winningCard || 'carta desconocida'}</span>
+      <span>${escapeHtml(winnerName)} · Equipo ${entry.winnerTeam === 0 ? 'A' : 'B'}</span>
+      <span>Ganó con ${escapeHtml(entry.winningCard || 'carta desconocida')}</span>
       <small>${entry.scoreAfter?.[0] ?? 0} - ${entry.scoreAfter?.[1] ?? 0} puntos</small>
     `;
     elements.historyList.appendChild(item);
@@ -408,7 +414,7 @@ function updateRoom(room) {
       && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel !== null && room.game.nextBetLevel !== undefined
       && room.game.lastBetTeam !== myPlayer.team;
     const isBetTarget = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null
-      && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team;
+      && room.game.pendingBet && room.game.pendingBet.targetTeam === myPlayer.team && !room.game.pendingBet.accepted;
 
     elements.tumboPanel.classList.toggle('hidden', !isTumbo || myPlayer?.role !== 'mandador' || myPlayer?.team !== room.game.tumboTeam);
     elements.envitePanel.classList.toggle('hidden', !currentTeamCanSend);
@@ -447,7 +453,8 @@ function updateRoom(room) {
       ? 'Partida finalizada'
       : room.game.status === 'trick-result'
         ? 'Mano terminada'
-        : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';
+        : room.game.forcedTumbo ? 'Tumbo obligado (ambos equipos a 11)'
+          : isTumbo ? 'Tumbo en juego' : 'Partida en marcha';
     elements.roundText.textContent = `Ronda ${room.game.round} · hasta 3 chicos`;
 
     if (room.game.turnPlayerId === myPlayerId && myRole === 'player') {
