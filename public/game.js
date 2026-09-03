@@ -355,18 +355,41 @@ function renderTeamChat(messages, player) {
   elements.teamChatPanel.classList.toggle('hidden', !canChat);
   if (!canChat) return;
 
+  elements.teamChatPanel.classList.toggle('team-a', player.team === 0);
+  elements.teamChatPanel.classList.toggle('team-b', player.team === 1);
   elements.teamChatLabel.textContent = `Equipo ${player.team === 0 ? 'A' : 'B'} · solo compañeros`;
   elements.teamChatMessages.innerHTML = '';
-  (messages || []).forEach((message) => {
+
+  if (!messages || messages.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'team-chat-empty';
+    empty.textContent = 'Todavía no hay mensajes. Elige una seña de la lista de abajo.';
+    elements.teamChatMessages.appendChild(empty);
+    return;
+  }
+
+  messages.forEach((message) => {
+    const isOwn = message.playerId === myPlayerId;
     const item = document.createElement('div');
-    item.className = `team-chat-message${message.playerId === myPlayerId ? ' own' : ''}`;
+    item.className = `team-chat-message${isOwn ? ' own' : ''}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'team-chat-avatar';
+    avatar.textContent = isOwn ? 'Tú' : (message.playerName || '?').charAt(0).toUpperCase();
+
+    const bubble = document.createElement('div');
+    bubble.className = 'team-chat-bubble';
+
     const meta = document.createElement('div');
     meta.className = 'team-chat-meta';
-    meta.textContent = message.playerId === myPlayerId ? 'Tú' : message.playerName;
+    meta.textContent = isOwn ? 'Tú' : message.playerName;
+
     const text = document.createElement('div');
     text.className = 'team-chat-text';
     text.textContent = message.text;
-    item.append(meta, text);
+
+    bubble.append(meta, text);
+    item.append(avatar, bubble);
     elements.teamChatMessages.appendChild(item);
   });
   elements.teamChatMessages.scrollTop = elements.teamChatMessages.scrollHeight;

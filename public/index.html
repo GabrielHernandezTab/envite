@@ -72,6 +72,7 @@
           </div>
         </section>
 
+        <div class="game-layout">
         <section class="game-box hidden" id="game-box">
           <div class="status-row">
             <div>
@@ -210,31 +211,38 @@
           </div>
 
           <div class="players-grid" id="players-grid"></div>
+        </section>
 
-          <section id="team-chat-panel" class="team-chat-panel hidden">
-            <div class="history-header">
+        <section id="team-chat-panel" class="team-chat-panel hidden">
+          <div class="team-chat-header">
+            <span class="team-chat-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H9l-4 3.6V17H5.5C4.67 17 4 16.33 4 15.5v-10Z" fill="currentColor"/></svg>
+            </span>
+            <div>
               <span class="tag">Chat del equipo</span>
               <span id="team-chat-label" class="history-help">Solo lo ve tu equipo</span>
             </div>
-            <div id="team-chat-messages" class="team-chat-messages" aria-live="polite"></div>
-            <form id="team-chat-form" class="team-chat-form">
-              <select id="team-chat-input" aria-label="Elige una opción de chat" autocomplete="off">
-                <option value="">Elige una opción</option>
-                <option value="chilasco">chilasco</option>
-                <option value="medio flu">medio flu</option>
-                <option value="flu">flu</option>
-                <option value="malilla">malilla</option>
-                <option value="ciego">ciego</option>
-                <option value="rey">rey</option>
-                <option value="3 de bastos">3 de bastos</option>
-                <option value="11 de bastos">11 de bastos</option>
-                <option value="10 de oros">10 de oros</option>
-              </select>
-              <button type="submit">Enviar</button>
-            </form>
-          </section>
-
+          </div>
+          <div id="team-chat-messages" class="team-chat-messages" aria-live="polite"></div>
+          <form id="team-chat-form" class="team-chat-form">
+            <select id="team-chat-input" aria-label="Elige una opción de chat" autocomplete="off">
+              <option value="">Elige una seña...</option>
+              <option value="chilasco">chilasco</option>
+              <option value="medio flu">medio flu</option>
+              <option value="flu">flu</option>
+              <option value="malilla">malilla</option>
+              <option value="ciego">ciego</option>
+              <option value="rey">rey</option>
+              <option value="3 de bastos">3 de bastos</option>
+              <option value="11 de bastos">11 de bastos</option>
+              <option value="10 de oros">10 de oros</option>
+            </select>
+            <button type="submit" class="team-chat-send" aria-label="Enviar seña">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.4 20.6 21 12 3.4 3.4 3 10l12 2-12 2 .4 6.6Z" fill="currentColor"/></svg>
+            </button>
+          </form>
         </section>
+        </div>
       </main>
     </div>
 

@@ -316,11 +316,20 @@ input {
   justify-content: center;
 }
 
+.game-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  width: 100%;
+}
+
 .game-box {
   display: grid;
   gap: 18px;
   width: 100%;
   max-width: 100%;
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
 .status-row {
@@ -700,44 +709,136 @@ input {
 }
 
 .team-chat-panel {
-  display: grid;
-  gap: 10px;
-  padding: 14px 16px;
+  --chat-accent: var(--primary);
+  --chat-accent-strong: var(--primary-2);
+  flex: 0 0 320px;
+  max-width: 320px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 16px;
-  background: rgba(255,255,255,0.03);
+  border-radius: 20px;
+  background: linear-gradient(165deg, rgba(255,255,255,0.06), rgba(255,255,255,0.015) 55%), var(--panel-soft);
+  box-shadow: 0 18px 34px rgba(0,0,0,0.22);
+  position: sticky;
+  top: 20px;
+}
+
+.team-chat-panel.team-a {
+  --chat-accent: var(--good);
+  --chat-accent-strong: var(--good-strong);
+}
+
+.team-chat-panel.team-b {
+  --chat-accent: var(--bad);
+  --chat-accent-strong: var(--bad-strong);
+}
+
+.team-chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.team-chat-header .tag {
+  color: var(--chat-accent-strong);
+}
+
+.team-chat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--chat-accent) 22%, transparent);
+  color: var(--chat-accent-strong);
+}
+
+.team-chat-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .team-chat-messages {
   display: grid;
-  gap: 8px;
-  max-height: 190px;
+  align-content: start;
+  gap: 10px;
+  max-height: 320px;
+  min-height: 80px;
   overflow-y: auto;
-  padding: 4px;
+  padding: 2px 4px 2px 2px;
+}
+
+.team-chat-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 10px 4px;
+  text-align: center;
 }
 
 .team-chat-message {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
   width: fit-content;
-  max-width: min(85%, 520px);
-  padding: 8px 11px;
-  border-radius: 10px 10px 10px 3px;
-  background: rgba(255,255,255,0.07);
+  max-width: 92%;
 }
 
 .team-chat-message.own {
   justify-self: end;
-  border-radius: 10px 10px 3px 10px;
-  background: rgba(255,191,71,0.16);
+  flex-direction: row-reverse;
+  margin-left: auto;
+}
+
+.team-chat-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.6rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--black-suit);
+  background: var(--chat-accent);
+}
+
+.team-chat-message.own .team-chat-avatar {
+  background: var(--primary);
+}
+
+.team-chat-bubble {
+  padding: 8px 12px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.team-chat-message.own .team-chat-bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 24%, transparent), rgba(255,255,255,0.05));
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
 .team-chat-meta {
   color: var(--muted);
-  font-size: 0.68rem;
-  margin-bottom: 3px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
 }
 
 .team-chat-text {
   overflow-wrap: anywhere;
+  font-size: 0.9rem;
 }
 
 .team-chat-form {
@@ -746,9 +847,37 @@ input {
   gap: 8px;
 }
 
-.team-chat-form input {
+.team-chat-form select {
   min-width: 0;
-  height: 42px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.team-chat-form select:focus {
+  outline: 2px solid color-mix(in srgb, var(--chat-accent) 60%, transparent);
+  outline-offset: 1px;
+}
+
+.team-chat-send {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border: none;
+  color: var(--black-suit);
+  box-shadow: 0 8px 16px rgba(255, 138, 61, 0.28);
+}
+
+.team-chat-send svg {
+  width: 18px;
+  height: 18px;
 }
 
 .player-card {
@@ -898,6 +1027,17 @@ input {
 }
 
 @media (max-width: 760px) {
+  .game-layout {
+    flex-direction: column;
+  }
+
+  .team-chat-panel {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
+    position: static;
+  }
+
   .hud-grid,
   .scoreboard,
   .team-board {

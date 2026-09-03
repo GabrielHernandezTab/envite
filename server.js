@@ -404,6 +404,29 @@ function awardStoneForRound(room, team) {
   const teamScore = room.game.scores[team] || 0;
   const hasActiveBet = !!room.game.pendingBet; // Solo si hay apuesta activa (no rechazada)
 
+  // Caso 0: "Chico fuera" — se juega el chico completo de un tirón, sin depender
+  // de las piedras acumuladas (ni siquiera si algún equipo está justo en 10).
+  // Ganar la baza da directamente el chico.
+  if (hasActiveBet && room.game.pendingBet.level === 'chico-fuera') {
+    room.game.chicos[team] = Math.min((room.game.chicos[team] || 0) + 1, 3);
+    room.game.scores = { 0: 0, 1: 0 };
+    room.game.pendingBet = null;
+    room.game.betUsedThisRound = true;
+    room.game.history.push({
+      roundWinner: team,
+      reason: 'Chico fuera',
+      chicoAwarded: true,
+      chicos: { ...room.game.chicos },
+      scoreAfter: { ...room.game.scores }
+    });
+
+    if (room.game.chicos[team] >= 3) {
+      room.game.status = 'finished';
+      room.game.finalWinner = team;
+    }
+    return;
+  }
+
   // Caso 1: Equipo ganador está en 10 piedras → suma 1 y entra en tumbo
   if (teamScore === 10) {
     room.game.scores[team] = 11;
@@ -448,8 +471,8 @@ function awardStoneForRound(room, team) {
     return;
   }
 
-  // Caso 4: Con envite activo → suma puntos del envite y verifica chico a 13+
-  const points = room.game.pendingBet.level === 'chico-fuera' ? 1 : Number(room.game.pendingBet.level);
+  // Caso 4: Envite a 4/7/9 → suma esos puntos y comprueba si con eso se llega a 13+ (chico)
+  const points = Number(room.game.pendingBet.level);
   const nextScore = (room.game.scores[team] || 0) + points;
 
   if (nextScore >= 13) {
