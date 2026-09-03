@@ -418,6 +418,17 @@ function updateRoom(room) {
   elements.chicosA.textContent = `Chicos: ${room.game?.chicos?.[0] ?? 0}`;
   elements.chicosB.textContent = `Chicos: ${room.game?.chicos?.[1] ?? 0}`;
 
+  // Las señas de "3 de bastos", "11 de bastos" y "10 de oros" solo tienen sentido en 3v3
+  // (son triunfos globales que no existen en 2v2), así que se ocultan del desplegable.
+  const is3v3 = mode === '3v3';
+  elements.teamChatInput.querySelectorAll('.sign-3v3-only').forEach((option) => {
+    option.hidden = !is3v3;
+    option.disabled = !is3v3;
+  });
+  if (!is3v3 && elements.teamChatInput.selectedOptions[0]?.classList.contains('sign-3v3-only')) {
+    elements.teamChatInput.value = '';
+  }
+
   const players = room.players || [];
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myHand = myPlayer?.hand || [];

@@ -18,6 +18,7 @@
         </div>
       </header>
 
+      <div class="app-body">
       <main class="panel">
         <section class="setup-box" id="setup-box">
           <div class="field">
@@ -64,7 +65,7 @@
               <li>Valor: el 2 del palo virado es el más alto; los 2 de otros palos son los más bajos.</li>
               <li>Después van Rey, Caballo, Sota, As, 7, 6, 5, 4 y 3.</li>
               <li>Las cartas del palo virado ganan a las de cualquier otro palo.</li>
-              <li>Si el primer jugador abre un palo, el resto debe seguirlo si lo tiene.</li>
+              <li>En 3v3, si el primer jugador abre un palo, el resto debe seguirlo si lo tiene (en 2v2 no hay esa obligación).</li>
               <li>Cuando un equipo llega a 11 piedras entra en tumbo.</li>
               <li>Si se rechaza el tumbo, el rival suma 1 piedra; si se acepta y se pierde, el rival suma 3.</li>
               <li>Los envíos aparecen por turnos: 4, después 7, 9 y finalmente chico fuera.</li>
@@ -72,7 +73,6 @@
           </div>
         </section>
 
-        <div class="game-layout">
         <section class="game-box hidden" id="game-box">
           <div class="status-row">
             <div>
@@ -212,8 +212,9 @@
 
           <div class="players-grid" id="players-grid"></div>
         </section>
+        </main>
 
-        <section id="team-chat-panel" class="team-chat-panel hidden">
+        <aside id="team-chat-panel" class="team-chat-panel hidden">
           <div class="team-chat-header">
             <span class="team-chat-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H9l-4 3.6V17H5.5C4.67 17 4 16.33 4 15.5v-10Z" fill="currentColor"/></svg>
@@ -233,17 +234,16 @@
               <option value="malilla">malilla</option>
               <option value="ciego">ciego</option>
               <option value="rey">rey</option>
-              <option value="3 de bastos">3 de bastos</option>
-              <option value="11 de bastos">11 de bastos</option>
-              <option value="10 de oros">10 de oros</option>
+              <option value="3 de bastos" class="sign-3v3-only">3 de bastos</option>
+              <option value="11 de bastos" class="sign-3v3-only">11 de bastos</option>
+              <option value="10 de oros" class="sign-3v3-only">10 de oros</option>
             </select>
             <button type="submit" class="team-chat-send" aria-label="Enviar seña">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.4 20.6 21 12 3.4 3.4 3 10l12 2-12 2 .4 6.6Z" fill="currentColor"/></svg>
             </button>
           </form>
-        </section>
-        </div>
-      </main>
+        </aside>
+      </div>
     </div>
 
     <div id="game-finished-modal" class="game-modal hidden" role="dialog" aria-modal="true" aria-labelledby="game-finished-title">

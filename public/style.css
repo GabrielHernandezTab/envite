@@ -114,6 +114,8 @@ h1 {
   border-radius: 24px;
   padding: 22px;
   box-shadow: 0 28px 70px var(--shadow);
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
 .setup-box {
@@ -316,7 +318,7 @@ input {
   justify-content: center;
 }
 
-.game-layout {
+.app-body {
   display: flex;
   align-items: flex-start;
   gap: 18px;
@@ -328,8 +330,6 @@ input {
   gap: 18px;
   width: 100%;
   max-width: 100%;
-  flex: 1 1 0%;
-  min-width: 0;
 }
 
 .status-row {
@@ -1027,7 +1027,7 @@ input {
 }
 
 @media (max-width: 760px) {
-  .game-layout {
+  .app-body {
     flex-direction: column;
   }
 

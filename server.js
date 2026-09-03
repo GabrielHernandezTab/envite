@@ -523,6 +523,56 @@ function applyRoundForfeit(room, abandoningTeam, reason) {
     message: `El equipo ${abandoningTeam === 0 ? 'A' : 'B'} abandona la ronda.`
   });
 
+  const inTumbo = room.game.tumboTeam !== null || room.game.forcedTumbo;
+
+  if (inTumbo) {
+    // Si el equipo que abandona NO es el que está en tumbo (o ambos lo están,
+    // por tumbo forzado), el equipo que se queda gana el chico directamente:
+    // el rival ha rehuido el tumbo en vez de jugarlo.
+    const abandoningIsTheTumboTeam = !room.game.forcedTumbo && abandoningTeam === room.game.tumboTeam;
+
+    if (!abandoningIsTheTumboTeam) {
+      room.game.chicos[rewardedTeam] = Math.min((room.game.chicos[rewardedTeam] || 0) + 1, 3);
+      room.game.scores = { 0: 0, 1: 0 };
+      room.game.tumboTeam = null;
+      room.game.forcedTumbo = false;
+      room.game.pendingTumbo = false;
+      room.game.pendingBet = null;
+      room.game.betUsedThisRound = true;
+      room.game.history.push({
+        roundWinner: rewardedTeam,
+        reason: 'Tumbo ganado: el rival abandona la ronda',
+        chicoAwarded: true,
+        chicos: { ...room.game.chicos },
+        scoreAfter: { ...room.game.scores }
+      });
+
+      if (room.game.chicos[rewardedTeam] >= 3) {
+        room.game.status = 'finished';
+        room.game.finalWinner = rewardedTeam;
+        return 'finished';
+      }
+
+      return 'continue';
+    }
+
+    // El propio equipo en tumbo es el que abandona: equivale a perder el tumbo,
+    // el contrario se arraya 3 piedras (igual que si lo perdiera jugando).
+    room.game.scores[rewardedTeam] = Math.min((room.game.scores[rewardedTeam] || 0) + 3, 11);
+    room.game.tumboTeam = null;
+    room.game.forcedTumbo = false;
+    room.game.pendingTumbo = false;
+    room.game.pendingBet = null;
+    room.game.betUsedThisRound = true;
+    room.game.history.push({
+      roundWinner: rewardedTeam,
+      reason: 'Tumbo perdido por abandono',
+      scoreAfter: { ...room.game.scores }
+    });
+
+    return 'continue';
+  }
+
   // Reutiliza la misma lógica de puntuación que una ronda ganada con normalidad:
   // respeta el envite activo si lo había, el caso especial de "en 10 piedras",
   // y el chico automático al llegar a 13+ con envite.
@@ -532,37 +582,36 @@ function applyRoundForfeit(room, abandoningTeam, reason) {
     return 'finished';
   }
 
-  const tumboThreshold = getModeConfig(room.mode || '2v2').tumboThreshold;
-  if (room.game.scores[rewardedTeam] >= tumboThreshold) {
-    room.game.tumboTeam = rewardedTeam;
-    room.game.forcedTumbo = false;
-    room.game.status = 'tumbo';
-    room.game.pendingTumbo = true;
-    dealFreshHand(room);
-    room.game.playedCards = [];
-    room.game.handWins = { 0: 0, 1: 0 };
-    return 'tumbo';
-  }
-
   return 'continue';
 }
 
-function dealFreshHand(room) {
-  const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
-  const deck = createDeck();
+// Comprueba si algún equipo está a 11 piedras o más y, si es así, pone la partida
+// en tumbo (o tumbo forzado si son los dos) en vez de dejar que se juegue una
+// mano normal. Se llama siempre que se reparten cartas nuevas, así el mensaje de
+// tumbo vuelve a salir en cuanto le toca jugar a un equipo que sigue a 11,
+// ronda tras ronda, en vez de solo la primera vez que llega.
+function maybeEnterTumbo(room) {
+  const threshold = getModeConfig(room.mode || '2v2').tumboThreshold;
+  const teamAIn = (room.game.scores[0] || 0) >= threshold;
+  const teamBIn = (room.game.scores[1] || 0) >= threshold;
 
-  room.players.forEach((player) => {
-    player.hand = [];
-  });
-
-  room.game.visibleCard = deck.pop();
-  for (let i = 0; i < 3; i += 1) {
-    orderedPlayers.forEach((player) => {
-      player.hand.push(deck.pop());
-    });
+  if (teamAIn && teamBIn) {
+    room.game.tumboTeam = null;
+    room.game.forcedTumbo = true;
+    room.game.pendingTumbo = false;
+    room.game.status = 'playing';
+    return true;
   }
 
-  room.game.deck = deck;
+  if (teamAIn || teamBIn) {
+    room.game.tumboTeam = teamAIn ? 0 : 1;
+    room.game.forcedTumbo = false;
+    room.game.status = 'tumbo';
+    room.game.pendingTumbo = true;
+    return true;
+  }
+
+  return false;
 }
 
 function reshuffleRound(room, reason = 'abandono', message = 'La ronda se ha abandonado y se han repartido nuevas cartas.') {
@@ -601,6 +650,8 @@ function reshuffleRound(room, reason = 'abandono', message = 'La ronda se ha aba
     reason,
     message
   });
+
+  maybeEnterTumbo(room);
 }
 
 function resolveTrick(room) {
@@ -673,21 +724,8 @@ function resolveTrick(room) {
       }
 
       // Reinicia ronda
-      room.game.tumboTeam = null;
-      room.game.forcedTumbo = false;
-      room.game.playedCards = [];
-      room.game.handWins = { 0: 0, 1: 0 };
-      room.game.roundAward = { team: null, points: 0, chico: false };
-      room.game.pendingBet = null;
-      room.game.nextBetLevel = 4;
-      room.game.lastBetTeam = null;
-      room.game.betUsedThisRound = false;
       room.game.round += 1;
-
-      dealFreshHand(room);
-      room.game.status = 'playing';
-      room.game.turnPlayerId = getRandomStarterId(room) || room.players[0]?.id;
-      room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+      reshuffleRound(room, 'chico-ganado', 'Chico ganado. Se reparten cartas nuevas.');
       notifyRoom(room);
       return;
     }
@@ -734,46 +772,11 @@ function resolveTrick(room) {
       return;
     }
 
-    if (room.game.scores[winningTeam] >= config.tumboThreshold) {
-      room.game.tumboTeam = winningTeam;
-      room.game.status = 'tumbo';
-      room.game.pendingTumbo = true;
-      // Reparte cartas nuevas para el tumbo y reinicia el contador de bazas,
-      // así el equipo decide viendo su mano y no arrastra bazas ya ganadas.
-      dealFreshHand(room);
-      room.game.playedCards = [];
-      room.game.handWins = { 0: 0, 1: 0 };
-      notifyRoom(room);
-      return;
-    }
-
-    // Ronda normal resuelta sin tumbo: reparte cartas nuevas
-    room.game.playedCards = [];
-    room.game.handWins = { 0: 0, 1: 0 };
-    room.game.roundAward = { team: null, points: 0, chico: false };
-    room.game.pendingBet = null;
-    room.game.nextBetLevel = 4;
-    room.game.lastBetTeam = null;
-    room.game.betUsedThisRound = false;
     room.game.round += 1;
-
-    const orderedPlayers = room.players.slice().sort((a, b) => a.seat - b.seat);
-    room.players.forEach((player) => {
-      player.hand = [];
-    });
-
-    const deck = createDeck();
-    room.game.visibleCard = deck.pop();
-    for (let i = 0; i < 3; i += 1) {
-      orderedPlayers.forEach((player) => {
-        player.hand.push(deck.pop());
-      });
-    }
-
-    room.game.deck = deck;
-    room.game.status = 'playing';
-    room.game.turnPlayerId = getRandomStarterId(room) || orderedPlayers[0]?.id || room.players[0]?.id;
-    room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
+    // reshuffleRound reparte cartas nuevas y comprueba automáticamente si algún
+    // equipo está a 11+ piedras, metiéndolo en tumbo (o tumbo forzado) en vez de
+    // empezar una mano normal.
+    reshuffleRound(room, 'ronda-ganada', 'Ronda ganada. Se reparten cartas nuevas.');
     notifyRoom(room);
     return;
   }
@@ -949,7 +952,9 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     const player = room.players.find((entry) => entry.id === socket.id);
-    const allowedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'ciego', 'rey', '3 de bastos', '11 de bastos', '10 de oros'];
+    const sharedMessages = ['chilasco', 'medio flu', 'flu', 'malilla', 'ciego', 'rey'];
+    const mode3v3OnlyMessages = ['3 de bastos', '11 de bastos', '10 de oros'];
+    const allowedMessages = room.mode === '3v3' ? [...sharedMessages, ...mode3v3OnlyMessages] : sharedMessages;
     const messageText = String(text || '').trim().toLowerCase();
     if (!player || player.team === null || !allowedMessages.includes(messageText)) return;
 
@@ -982,9 +987,9 @@ io.on('connection', (socket) => {
 
     const leadSuit = room.game.playedCards[0]?.card?.suit;
     const hasLeadSuit = leadSuit && player.hand.some((entry) => entry.suit === leadSuit);
-    // Se debe servir siempre el palo que sale (sea o no el de la vira);
-    // solo si no se tiene ese palo se puede tirar cualquier otra carta (incluido triunfo).
-    if (leadSuit && hasLeadSuit && card.suit !== leadSuit) {
+    // La regla de arrastre (servir el palo que sale si se tiene) solo se aplica en 3v3;
+    // en 2v2 se puede jugar cualquier carta libremente.
+    if (room.mode === '3v3' && leadSuit && hasLeadSuit && card.suit !== leadSuit) {
       socket.emit('join-error', `Debes seguir el palo ${leadSuit} si lo tienes.`);
       return;
     }
@@ -1031,7 +1036,7 @@ io.on('connection', (socket) => {
     if (abandoningTeam === null || abandoningTeam === undefined) return;
 
     const outcome = applyRoundForfeit(room, abandoningTeam, 'abandono');
-    if (outcome === 'finished' || outcome === 'tumbo') {
+    if (outcome === 'finished') {
       notifyRoom(room);
       return;
     }
@@ -1051,7 +1056,7 @@ io.on('connection', (socket) => {
 
     const outcome = applyRoundForfeit(room, abandoningTeam, 'renuncia');
 
-    if (outcome === 'finished' || outcome === 'tumbo') {
+    if (outcome === 'finished') {
       room.game.history.push({
         round: room.game.round,
         renounced: true,
@@ -1178,18 +1183,8 @@ io.on('connection', (socket) => {
         return;
       }
 
-      if (room.game.scores[winningTeam] >= getModeConfig(room.mode || '2v2').tumboThreshold) {
-        room.game.tumboTeam = winningTeam;
-        room.game.status = 'tumbo';
-        room.game.pendingTumbo = true;
-        dealFreshHand(room);
-        room.game.playedCards = [];
-        room.game.handWins = { 0: 0, 1: 0 };
-        notifyRoom(room);
-        return;
-      }
-
-      // Reparte cartas nuevas e incrementa ronda
+      // Reparte cartas nuevas e incrementa ronda; si con estas piedras algún
+      // equipo llega a tumbo, reshuffleRound lo detecta y lo pone en ese estado.
       reshuffleRound(room);
       room.game.turnPlayerId = room.game.turnOrder?.[0] || room.players[0].id;
       notifyRoom(room);
@@ -1245,39 +1240,11 @@ io.on('connection', (socket) => {
       });
 
       // Se reparten cartas nuevas (y cambia la vira) para la siguiente mano.
-      dealFreshHand(room);
-      room.game.playedCards = [];
-      room.game.handWins = { 0: 0, 1: 0 };
-      room.game.roundAward = { team: null, points: 0, chico: false };
-      room.game.pendingBet = null;
-      room.game.nextBetLevel = 4;
-      room.game.lastBetTeam = null;
-      room.game.betUsedThisRound = false;
-
-      // El equipo que rechazó sigue a 11 (su marcador no baja), así que le vuelve
-      // a tocar decidir con las cartas nuevas, salvo que el contrario también
-      // haya llegado a 11 con la piedra de consolación: en ese caso ambos están
-      // obligados a jugar el tumbo, sin pregunta de por medio.
-      const otherAlsoInTumbo = room.game.scores[otherTeam] >= tumboThreshold;
-
-      if (otherAlsoInTumbo) {
-        room.game.tumboTeam = null;
-        room.game.forcedTumbo = true;
-        room.game.pendingTumbo = false;
-        room.game.status = 'playing';
-        room.game.turnPlayerId = getRandomStarterId(room) || room.players[0]?.id;
-        room.game.turnOrder = buildAlternatingTurnOrder(room, room.game.turnPlayerId);
-        room.game.history.push({
-          message: 'Ambos equipos están en tumbo: se juega esta mano obligatoriamente, sin poder rechazarla.'
-        });
-        notifyRoom(room);
-        return;
-      }
-
-      room.game.tumboTeam = tumboTeam;
-      room.game.forcedTumbo = false;
-      room.game.status = 'tumbo';
-      room.game.pendingTumbo = true;
+      // El equipo que rechazó sigue a 11 (su marcador no baja), así que
+      // reshuffleRound (vía maybeEnterTumbo) le vuelve a preguntar automáticamente
+      // con las cartas nuevas — o mete a ambos en tumbo forzado si el contrario
+      // también llegó a 11 con la piedra de consolación.
+      reshuffleRound(room, 'tumbo-rechazado', 'No se acepta el tumbo. Se reparten cartas nuevas.');
       notifyRoom(room);
       return;
     }
