@@ -171,6 +171,16 @@ function notifyRoom(room) {
   });
 }
 
+
+function autoAssignClassicTable(room) {
+  if (!room || room.mode !== '2v2' || room.game || room.players.length > 4) return;
+  room.players.forEach((player, index) => {
+    player.seat = index;
+    player.team = index % 2 === 0 ? 0 : 1;
+    player.role = index < 2 ? 'mandador' : 'mandado';
+  });
+}
+
 function getModeConfig(mode = '2v2') {
   const normalizedMode = mode === '3v3' ? '3v3' : '2v2';
   return {
@@ -796,7 +806,7 @@ io.on('connection', (socket) => {
     const playerName = String(name || 'Jugador').trim().slice(0, 18) || 'Jugador';
     const selectedMode = mode === '3v3' ? '3v3' : '2v2';
 
-    room.mode = selectedMode;
+    room.mode = '2v2';
     room.players.push({
       id: socket.id,
       name: playerName,
@@ -809,6 +819,7 @@ io.on('connection', (socket) => {
       isHost: room.players.length === 0
     });
 
+    autoAssignClassicTable(room);
     room.ownerId = socket.id;
     socket.join(room.code);
     socket.data.roomCode = room.code;
@@ -850,6 +861,8 @@ io.on('connection', (socket) => {
       isHost: false
     });
 
+    autoAssignClassicTable(room);
+    if (room.players.length === 4) startGame(room);
     socket.join(room.code);
     socket.data.roomCode = room.code;
     socket.data.role = 'player';
@@ -974,7 +987,8 @@ io.on('connection', (socket) => {
       });
   });
 
-  socket.on('play-card', ({ cardId, faceDown = false }) => {
+  socket.on('play-card', ({ cardId }) => {
+    const faceDown = false;
     const room = getRoomBySocketId(socket.id);
     if (!room || !room.game || room.game.status !== 'playing') return;
 
@@ -1278,6 +1292,8 @@ io.on('connection', (socket) => {
       player.hand = [];
     });
     room.game = null;
+    autoAssignClassicTable(room);
+    startGame(room);
     notifyRoom(room);
   });
 
@@ -1295,6 +1311,7 @@ io.on('connection', (socket) => {
       if (room.players.length === 0 && room.spectators.length === 0) {
         rooms.delete(room.code);
       } else {
+        if (!room.game) autoAssignClassicTable(room);
         notifyRoom(room);
       }
     }

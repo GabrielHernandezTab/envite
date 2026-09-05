@@ -97,6 +97,9 @@ function savePlayerName() {
 }
 
 loadSavedPlayerName();
+if (elements.faceDownBtn) elements.faceDownBtn.style.display = 'none';
+if (elements.teamABtn) elements.teamABtn.style.display = 'none';
+if (elements.teamBBtn) elements.teamBBtn.style.display = 'none';
 elements.playerName.addEventListener('change', savePlayerName);
 
 let myPlayerId = null;
@@ -186,9 +189,9 @@ function renderHand(hand, room) {
 
     btn.addEventListener('click', () => {
       if (btn.disabled) return;
-      socket.emit('play-card', { cardId: card.id, faceDown: playFaceDown });
+      socket.emit('play-card', { cardId: card.id, faceDown: false });
       playFaceDown = false;
-      elements.faceDownBtn.textContent = 'Jugar carta boca abajo: no';
+      if (elements.faceDownBtn) elements.faceDownBtn.textContent = 'Carta boca arriba';
     });
 
     elements.hand.appendChild(btn);
@@ -542,7 +545,7 @@ function updateRoom(room) {
   const myHand = myPlayer?.hand || [];
   elements.roleSelectionModal.classList.toggle('hidden', !myPlayer || myPlayer.team === null || myPlayer.role !== null);
   elements.handPanel.classList.toggle('hidden', !room.game);
-  elements.faceDownBtn.textContent = `Jugar carta boca abajo: ${playFaceDown ? 'sí' : 'no'}`;
+  if (elements.faceDownBtn) elements.faceDownBtn.textContent = 'Carta boca arriba';
   renderHand(myHand, room);
   renderTableCards(room.game?.playedCards || [], players);
   renderPlayers(players, room);
@@ -551,6 +554,10 @@ function updateRoom(room) {
 
   if (room.game) {
     renderVisibleCard(room.game.visibleCard);
+    const betValueEl = document.getElementById('current-bet-value');
+    const betFromEl = document.getElementById('current-bet-from');
+    if (betValueEl) betValueEl.textContent = room.game.pendingBet ? (room.game.pendingBet.level === 'chico-fuera' ? 'CHICO' : String(room.game.pendingBet.level)) : '—';
+    if (betFromEl) { const sender = room.game.pendingBet ? players.find(p => p.team === room.game.pendingBet.challengerTeam) : null; betFromEl.textContent = sender ? `Enviado por ${sender.name}` : 'Sin envío'; }
     const isTumbo = room.game.status === 'tumbo';
     const currentTeamCanSend = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null && room.game.status === 'playing'
       && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel !== null && room.game.nextBetLevel !== undefined
@@ -601,13 +608,17 @@ function updateRoom(room) {
 
     if (room.game.turnPlayerId === myPlayerId && myRole === 'player') {
       elements.turnIndicator.textContent = 'Es tu turno';
+      const bottomTurn = document.getElementById('turn-indicator-bottom'); if (bottomTurn) bottomTurn.textContent = 'ES TU TURNO';
     } else if (myRole === 'spectator') {
       elements.turnIndicator.textContent = 'Modo espectador';
+      const bottomTurn = document.getElementById('turn-indicator-bottom'); if (bottomTurn) bottomTurn.textContent = 'ESPECTADOR';
     } else if (room.game.status === 'trick-result') {
       elements.turnIndicator.textContent = 'Mostrando resultado';
+      const bottomTurn = document.getElementById('turn-indicator-bottom'); if (bottomTurn) bottomTurn.textContent = 'RESULTADO';
     } else {
       const name = players.find((player) => player.id === room.game.turnPlayerId)?.name || 'Otro';
       elements.turnIndicator.textContent = `Turno de ${name}`;
+      const bottomTurn = document.getElementById('turn-indicator-bottom'); if (bottomTurn) bottomTurn.textContent = `TURNO DE ${name}`;
     }
 
     if (room.game.status === 'finished') {
@@ -631,7 +642,7 @@ function updateRoom(room) {
     } else if (room.players.length < requiredPlayers) {
       elements.resultText.textContent = `Esperando a que haya ${requiredPlayers} jugadores para empezar.`;
     } else if (room.players.some((player) => player.team === null)) {
-      elements.resultText.textContent = 'Cada jugador debe elegir su equipo.';
+      elements.resultText.textContent = 'Asignando asientos y roles automáticamente.';
     } else {
       elements.gameFinishedModal.classList.add('hidden');
       elements.resultText.textContent = 'La partida ha empezado. Haz tu jugada.';
@@ -643,7 +654,7 @@ function updateRoom(room) {
     elements.statusText.textContent = 'Esperando jugadores';
     elements.roundText.textContent = 'Ronda 1 · hasta 3 chicos';
     elements.resultText.textContent = room.players.length >= requiredPlayers
-      ? 'Todos los jugadores están en la sala. Elige equipo para empezar.'
+      ? 'Mesa completa. La partida comenzará automáticamente.'
       : `Necesitas ${requiredPlayers} jugadores para iniciar la partida.`;
   }
 
@@ -730,9 +741,8 @@ elements.mandadorBtn.addEventListener('click', () => socket.emit('select-role', 
 elements.mandadoBtn.addEventListener('click', () => socket.emit('select-role', { role: 'mandado' }));
 elements.abandonRoundBtn.addEventListener('click', () => socket.emit('abandon-round'));
 elements.renounceRoundBtn.addEventListener('click', () => socket.emit('renounce-round'));
-elements.faceDownBtn.addEventListener('click', () => {
-  playFaceDown = !playFaceDown;
-  elements.faceDownBtn.textContent = `Jugar carta boca abajo: ${playFaceDown ? 'sí' : 'no'}`;
+if (elements.faceDownBtn) elements.faceDownBtn.addEventListener('click', () => {
+  playFaceDown = false;
 });
 elements.tumboYesBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: true }));
 elements.tumboNoBtn.addEventListener('click', () => socket.emit('tumbo-decision', { accept: false }));
