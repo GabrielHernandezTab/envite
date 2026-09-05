@@ -1051,31 +1051,20 @@ io.on('connection', (socket) => {
     const player = room.players.find((entry) => entry.id === socket.id);
     if (!player || player.role !== 'mandador') return;
 
-    const abandoningTeam = player.team;
-    if (abandoningTeam === null || abandoningTeam === undefined) return;
+    const renouncingTeam = player.team;
+    if (renouncingTeam === null || renouncingTeam === undefined) return;
 
-    const outcome = applyRoundForfeit(room, abandoningTeam, 'renuncia');
-
-    if (outcome === 'finished') {
-      room.game.history.push({
-        round: room.game.round,
-        renounced: true,
-        player: player.name,
-        team: abandoningTeam,
-        message: 'El mandador ha renunciado.'
-      });
-      notifyRoom(room);
-      return;
-    }
-
-    reshuffleRound(room);
+    // A diferencia de "Abandonar ronda", renunciar NO otorga piedras a ningún
+    // equipo: simplemente se cancela la mano y se reparten cartas nuevas.
     room.game.history.push({
       round: room.game.round,
       renounced: true,
       player: player.name,
-      team: abandoningTeam,
-      message: 'El mandador ha renunciado y se han repartido nuevas cartas.'
+      team: renouncingTeam,
+      message: 'El mandador ha renunciado. No se otorgan piedras a ningún equipo; se reparten cartas nuevas.'
     });
+
+    reshuffleRound(room, 'renuncia', 'El mandador ha renunciado. Se reparten cartas nuevas, sin piedras de por medio.');
     notifyRoom(room);
   });
 

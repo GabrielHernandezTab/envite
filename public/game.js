@@ -72,6 +72,33 @@ const elements = {
   betRaiseChicoBtn: document.getElementById('bet-raise-chico-btn')
 };
 
+// Recuerda el nombre del jugador entre partidas/sesiones para no tener que escribirlo cada vez.
+const PLAYER_NAME_STORAGE_KEY = 'envite-canario:player-name';
+
+function loadSavedPlayerName() {
+  try {
+    const saved = localStorage.getItem(PLAYER_NAME_STORAGE_KEY);
+    if (saved) {
+      elements.playerName.value = saved;
+    }
+  } catch (error) {
+    // Almacenamiento no disponible (modo privado, permisos, etc.): seguimos sin recordar el nombre.
+  }
+}
+
+function savePlayerName() {
+  const name = elements.playerName.value.trim();
+  if (!name) return;
+  try {
+    localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
+  } catch (error) {
+    // Ignorar si el almacenamiento no está disponible.
+  }
+}
+
+loadSavedPlayerName();
+elements.playerName.addEventListener('change', savePlayerName);
+
 let myPlayerId = null;
 let myRole = 'player';
 let currentRoomCode = '';
@@ -120,7 +147,7 @@ function getCardImageUrl(card) {
   return `cards/${card.suit}_${CARD_RANK_FILE[card.rank]}.png`;
 }
 
-function renderCardFace(card, compact = false) {
+function renderCardFace(card) {
   const el = document.createElement('div');
   el.className = 'card-face';
 
@@ -130,10 +157,6 @@ function renderCardFace(card, compact = false) {
   img.alt = card ? `${getRankDisplay(card.rank)} de ${card.suit}` : 'Carta boca abajo';
   img.draggable = false;
   el.appendChild(img);
-
-  if (compact) {
-    el.style.transform = 'scale(0.85)';
-  }
 
   return el;
 }
@@ -188,10 +211,8 @@ function renderTableCards(playedCards, players) {
     item.className = 'table-card';
 
     const player = players.find((p) => p.id === entry.playerId);
-    const mini = renderCardFace(entry.faceDown ? null : entry.card, true);
-    mini.style.width = '50px';
-    mini.style.height = '72px';
-    mini.style.display = 'inline-block';
+    const mini = renderCardFace(entry.faceDown ? null : entry.card);
+    mini.classList.add('table-card-image');
 
     const label = document.createElement('div');
     label.textContent = entry.faceDown
@@ -203,7 +224,90 @@ function renderTableCards(playedCards, players) {
   });
 }
 
-function renderSeatPositions(players) {
+// --- Caras de los avatares con expresión según el momento de la partida ---
+const AVATAR_EXPRESSIONS = {
+  neutral: {
+    eyeR: 2.3,
+    browLeft: null,
+    browRight: null,
+    mouth: '<path d="M13,26 Q20,27 27,26" />'
+  },
+  alert: {
+    eyeR: 2.7,
+    browLeft: '<path d="M11,10.5 L17,9.5" />',
+    browRight: '<path d="M23,9.5 L29,10.5" />',
+    mouth: '<ellipse cx="20" cy="26.5" rx="2.6" ry="2.1" />'
+  },
+  happy: {
+    eyeR: 2.3,
+    browLeft: '<path d="M11,11.5 L17,10.5" />',
+    browRight: '<path d="M23,10.5 L29,11.5" />',
+    mouth: '<path d="M12,24 Q20,33 28,24" />'
+  },
+  sad: {
+    eyeR: 2.1,
+    browLeft: '<path d="M11,13 L17,10" />',
+    browRight: '<path d="M23,10 L29,13" />',
+    mouth: '<path d="M12,27 Q20,20 28,27" />'
+  },
+  smirk: {
+    eyeR: 2.3,
+    browLeft: '<path d="M11,12 L17,12" />',
+    browRight: '<path d="M23,9 L29,11" />',
+    mouth: '<path d="M13,26 Q20,29 27,21" />'
+  },
+  thinking: {
+    eyeR: 2.1,
+    browLeft: '<path d="M11,11 L17,13" />',
+    browRight: '<path d="M23,13 L29,11" />',
+    mouth: '<path d="M15,26 Q20,25 24,27" />'
+  }
+};
+
+function buildAvatarFaceSvg(expression) {
+  const def = AVATAR_EXPRESSIONS[expression] || AVATAR_EXPRESSIONS.neutral;
+  return `
+    <svg viewBox="0 0 40 40" class="avatar-face" aria-hidden="true">
+      <circle class="avatar-face-bg" cx="20" cy="20" r="19" />
+      ${def.browLeft || ''}
+      ${def.browRight || ''}
+      <circle class="eye" cx="14" cy="17" r="${def.eyeR}" />
+      <circle class="eye" cx="26" cy="17" r="${def.eyeR}" />
+      <g class="mouth">${def.mouth}</g>
+    </svg>
+  `;
+}
+
+function getPlayerExpression(player, room) {
+  if (!room?.game || player.team === null || player.team === undefined) return 'neutral';
+  const game = room.game;
+
+  // Resultado de la última baza: contento el equipo ganador, disgustado el otro.
+  if (game.status === 'trick-result' && game.trickWinner) {
+    return game.trickWinner.team === player.team ? 'happy' : 'sad';
+  }
+
+  // Alguien tiene que decidir un envite: quien lo propuso "farolea", a quien
+  // se lo proponen se lo piensa.
+  if (game.pendingBet && !game.pendingBet.accepted && player.role === 'mandador') {
+    if (game.pendingBet.challengerTeam === player.team) return 'smirk';
+    if (game.pendingBet.targetTeam === player.team) return 'thinking';
+  }
+
+  // Tumbo pendiente de decisión.
+  if (game.pendingTumbo && game.tumboTeam === player.team && player.role === 'mandador') {
+    return 'thinking';
+  }
+
+  // Le toca jugar carta ahora mismo.
+  if (game.status === 'playing' && game.turnPlayerId === player.id) {
+    return 'alert';
+  }
+
+  return 'neutral';
+}
+
+function renderSeatPositions(players, room) {
   if (!elements.seatPositions) return;
 
   elements.seatPositions.innerHTML = '';
@@ -222,14 +326,18 @@ function renderSeatPositions(players) {
   reserved.slice(0, Math.max(4, reserved.length)).forEach((player, index) => {
     const seat = document.createElement('div');
     const seatDef = seatPositions[index] || seatPositions[index % seatPositions.length];
-    seat.className = `seat ${seatDef.className}`;
+    const hasPlayer = Boolean(player.id);
+    const teamClass = player.team === 0 ? 'team-a' : player.team === 1 ? 'team-b' : 'team-none';
+    const expression = hasPlayer ? getPlayerExpression(player, room) : 'neutral';
+    const isMyTurn = hasPlayer && room?.game?.status === 'playing' && room.game.turnPlayerId === player.id;
+    seat.className = `seat ${seatDef.className}${isMyTurn ? ' seat-active' : ''}`;
     if (index >= 4) {
       seat.style.top = index === 4 ? '18%' : '18%';
       seat.style.left = index === 4 ? '50%' : '72%';
       seat.style.transform = 'translateX(-50%)';
     }
     seat.innerHTML = `
-      <div class="seat-avatar">${escapeHtml((player.name || 'Libre').charAt(0).toUpperCase())}</div>
+      <div class="seat-avatar ${teamClass}">${hasPlayer ? buildAvatarFaceSvg(expression) : escapeHtml((player.name || 'Libre').charAt(0).toUpperCase())}</div>
       <div class="seat-name">${escapeHtml(player.name || 'Libre')}</div>
       <div class="seat-team">${player.team === 0 ? 'Equipo A' : player.team === 1 ? 'Equipo B' : 'Esperando'}</div>
     `;
@@ -241,7 +349,7 @@ function renderPlayers(players, room) {
   elements.playersGrid.innerHTML = '';
   elements.teamAPlayers.innerHTML = '';
   elements.teamBPlayers.innerHTML = '';
-  renderSeatPositions(players);
+  renderSeatPositions(players, room);
 
   const teamA = players.filter((player) => player.team === 0);
   const teamB = players.filter((player) => player.team === 1);
@@ -566,12 +674,14 @@ function updateRoom(room) {
 
 function createRoom() {
   const name = elements.playerName.value.trim() || 'Jugador';
+  savePlayerName();
   const mode = elements.gameModeSelect.value === '3v3' ? '3v3' : '2v2';
   socket.emit('create-room', { name, mode });
 }
 
 function joinRoom() {
   const name = elements.playerName.value.trim() || 'Jugador';
+  savePlayerName();
   const code = elements.roomCode.value.trim().toUpperCase();
   if (!code) {
     elements.resultText.textContent = 'Escribe el código de la sala.';
@@ -582,6 +692,7 @@ function joinRoom() {
 
 function spectateRoom() {
   const name = elements.playerName.value.trim() || 'Espectador';
+  savePlayerName();
   const code = elements.roomCode.value.trim().toUpperCase();
   if (!code) {
     elements.resultText.textContent = 'Escribe el código para espectar.';
