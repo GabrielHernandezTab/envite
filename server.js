@@ -1084,8 +1084,11 @@ io.on('connection', (socket) => {
 
   socket.on('send-bet', ({ level }) => {
     const room = getRoomBySocketId(socket.id);
-    if (!room || !room.game || room.game.status === 'tumbo' || room.game.status !== 'playing' || room.game.betUsedThisRound) return;
-    
+    if (!room || !room.game || room.game.status !== 'playing' || room.game.betUsedThisRound) return;
+    // No se puede envidar mientras haya un tumbo en juego (aceptado o forzado),
+    // aunque el estado vuelva a "playing" para poder jugar las bazas.
+    if (room.game.tumboTeam !== null || room.game.forcedTumbo) return;
+
     // Bloquear si hay envite pendiente sin aceptar
     if (room.game.pendingBet && !room.game.pendingBet.accepted) return;
 

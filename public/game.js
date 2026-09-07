@@ -202,10 +202,6 @@ function renderTableCards(playedCards, players) {
   elements.tableCards.innerHTML = '';
 
   if (!Array.isArray(playedCards) || playedCards.length === 0) {
-    const empty = document.createElement('span');
-    empty.className = 'table-card';
-    empty.textContent = 'No hay cartas sobre la mesa';
-    elements.tableCards.appendChild(empty);
     return;
   }
 
@@ -218,9 +214,10 @@ function renderTableCards(playedCards, players) {
     mini.classList.add('table-card-image');
 
     const label = document.createElement('div');
+    const shortName = (player?.name || 'Jugador').split(' ')[0];
     label.textContent = entry.faceDown
-      ? `${player?.name || 'Jugador'}: carta boca abajo`
-      : `${player?.name || 'Jugador'}: ${getRankDisplay(entry.card.rank)} de ${entry.card.suit}`;
+      ? `${shortName}: boca abajo`
+      : `${shortName}: ${getRankDisplay(entry.card.rank)} de ${entry.card.suit}`;
     item.appendChild(mini);
     item.appendChild(label);
     elements.tableCards.appendChild(item);
@@ -314,8 +311,9 @@ function renderSeatPositions(players, room) {
   if (!elements.seatPositions) return;
 
   elements.seatPositions.innerHTML = '';
-  const orderedPlayers = [...players].sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
-  const reserved = orderedPlayers.length ? orderedPlayers : Array.from({ length: 4 }, (_, index) => ({ name: `Jugador ${index + 1}`, team: null, seat: index }));
+  const totalSeats = 4; // Esta versión es siempre 2v2
+  const bySeat = new Map(players.map((player) => [player.seat ?? 0, player]));
+  const reserved = Array.from({ length: totalSeats }, (_, index) => bySeat.get(index) || { name: 'Libre', team: null, seat: index });
 
   const seatPositions = [
     { className: 'seat seat-top-left', angle: 'top-left' },
@@ -468,7 +466,9 @@ function renderTeamChat(messages, player) {
 
   elements.teamChatPanel.classList.toggle('team-a', player.team === 0);
   elements.teamChatPanel.classList.toggle('team-b', player.team === 1);
-  elements.teamChatLabel.textContent = `Equipo ${player.team === 0 ? 'A' : 'B'} · solo compañeros`;
+  if (elements.teamChatLabel) {
+    elements.teamChatLabel.textContent = `Equipo ${player.team === 0 ? 'A' : 'B'} · solo compañeros`;
+  }
   elements.teamChatMessages.innerHTML = '';
 
   if (!messages || messages.length === 0) {
@@ -560,6 +560,7 @@ function updateRoom(room) {
     if (betFromEl) { const sender = room.game.pendingBet ? players.find(p => p.team === room.game.pendingBet.challengerTeam) : null; betFromEl.textContent = sender ? `Enviado por ${sender.name}` : 'Sin envío'; }
     const isTumbo = room.game.status === 'tumbo';
     const currentTeamCanSend = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null && room.game.status === 'playing'
+      && room.game.tumboTeam === null && !room.game.forcedTumbo
       && !room.game.pendingBet && !room.game.betUsedThisRound && room.game.nextBetLevel !== null && room.game.nextBetLevel !== undefined
       && room.game.lastBetTeam !== myPlayer.team;
     const isBetTarget = myPlayer && myPlayer.role === 'mandador' && myPlayer.team !== null
