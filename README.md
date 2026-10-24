@@ -36,16 +36,15 @@ El servidor escucha en `0.0.0.0`, lo que permite conexiones desde otras redes cu
 
 ## Cómo jugar
 
-- Un jugador crea la sala.
-- Otro jugador entra con el código.
-- Cuando haya 4 jugadores, la partida empieza.
-- Cada jugador elige un número del 1 al 9.
-- El equipo con mayor suma gana la ronda.
-- Se repite durante 5 rondas.
+- Al crear la sala, el anfitrión elige el modo 2 contra 2 o 3 contra 3.
+- Los demás jugadores entran con el código de la sala.
+- Cada jugador elige el equipo A o B y, después, su rol.
+- La partida empieza automáticamente cuando todos los puestos y roles están completos.
 
 ## Archivos principales
 
 - `server.js` — servidor Socket.IO
-- `public/index.html` — pantalla de juego
+- `public/index.html` — menú principal para elegir juego
+- `public/envite.html` — sala y partida de Envite
 - `public/game.js` — lógica del cliente
 - `public/style.css` — estilos visuales

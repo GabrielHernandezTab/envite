@@ -12,7 +12,10 @@ const elements = {
   roomCodeBadge: document.getElementById('room-code-badge'),
   playerName: document.getElementById('player-name'),
   roomCode: document.getElementById('room-code'),
-  gameModeSelect: document.querySelector('input[name="game-mode"]'),
+  teamBoard: document.getElementById('team-board'),
+  teamSelectionHint: document.getElementById('team-selection-hint'),
+  setupPlayerCount: document.getElementById('setup-player-count'),
+  roleSelectionCopy: document.getElementById('role-selection-copy'),
   createRoomBtn: document.getElementById('create-room-btn'),
   joinRoomBtn: document.getElementById('join-room-btn'),
   spectateBtn: document.getElementById('spectate-btn'),
@@ -98,8 +101,6 @@ function savePlayerName() {
 
 loadSavedPlayerName();
 if (elements.faceDownBtn) elements.faceDownBtn.style.display = 'none';
-if (elements.teamABtn) elements.teamABtn.style.display = 'none';
-if (elements.teamBBtn) elements.teamBBtn.style.display = 'none';
 elements.playerName.addEventListener('change', savePlayerName);
 
 let myPlayerId = null;
@@ -362,23 +363,24 @@ function renderPlayers(players, room) {
   [teamA, teamB].forEach((teamPlayers, teamIndex) => {
     const list = teamIndex === 0 ? elements.teamAPlayers : elements.teamBPlayers;
 
-    if (teamPlayers.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'team-player-item empty';
-      empty.textContent = 'Sin jugadores';
-      list.appendChild(empty);
-      return;
-    }
-
     teamPlayers.forEach((player) => {
       const item = document.createElement('div');
       item.className = 'team-player-item';
       item.innerHTML = `
         <span class="team-player-name">${escapeHtml(player.name)}</span>
-        <span class="team-player-role">${player.id === myPlayerId ? 'Tú' : 'Jugador'}</span>
+        <span class="team-player-role">${player.role ? (player.role === 'mandador' ? 'Mandador' : 'Mandado') : player.id === myPlayerId ? 'Tú' : 'Esperando rol'}</span>
       `;
       list.appendChild(item);
     });
+
+    for (let seat = teamPlayers.length; seat < teamSize; seat += 1) {
+      const empty = document.createElement('div');
+      empty.className = 'team-player-item empty';
+      empty.textContent = teamPlayers.length === 0 && seat === 0
+        ? 'Elige este equipo para ocupar la primera plaza'
+        : 'Plaza disponible';
+      list.appendChild(empty);
+    }
   });
 
   players.forEach((player) => {
@@ -543,7 +545,29 @@ function updateRoom(room) {
   const players = room.players || [];
   const myPlayer = players.find((player) => player.id === myPlayerId) || null;
   const myHand = myPlayer?.hand || [];
-  elements.roleSelectionModal.classList.toggle('hidden', !myPlayer || myPlayer.team === null || myPlayer.role !== null);
+  const myTeamPlayers = myPlayer?.team === null || !myPlayer
+    ? []
+    : players.filter((player) => player.team === myPlayer.team);
+  const mandadores = myTeamPlayers.filter((player) => player.role === 'mandador').length;
+  const mandados = myTeamPlayers.filter((player) => player.role === 'mandado').length;
+  const mandadoLimit = mode === '3v3' ? 2 : 1;
+  const needsRole = Boolean(myPlayer && myPlayer.team !== null && myPlayer.role === null && !room.game);
+  elements.roleSelectionModal.classList.toggle('hidden', !needsRole);
+  elements.roleSelectionCopy.textContent = `Estás en el Equipo ${myPlayer?.team === 0 ? 'A' : 'B'}. Escoge tu rol.`;
+  elements.mandadorBtn.disabled = mandadores >= 1;
+  elements.mandadoBtn.disabled = mandados >= mandadoLimit;
+  elements.mandadorBtn.textContent = mandadores >= 1 ? 'MANDADOR · OCUPADO' : 'MANDADOR';
+  elements.mandadoBtn.textContent = mandados >= mandadoLimit ? 'MANDADO · COMPLETO' : 'MANDADO';
+  elements.teamBoard.classList.toggle('hidden', Boolean(room.game));
+  if (room.game) {
+    elements.teamSelectionHint.textContent = 'La partida ya está en curso.';
+  } else if (!myPlayer) {
+    elements.teamSelectionHint.textContent = 'Entra como jugador para elegir equipo.';
+  } else if (myPlayer.team !== null) {
+    elements.teamSelectionHint.textContent = `Ya estás en el Equipo ${myPlayer.team === 0 ? 'A' : 'B'}. Elige tu rol para continuar.`;
+  } else {
+    elements.teamSelectionHint.textContent = `Elige un equipo · ${players.length} de ${requiredPlayers} jugadores en la sala.`;
+  }
   elements.handPanel.classList.toggle('hidden', !room.game);
   if (elements.faceDownBtn) elements.faceDownBtn.textContent = 'Carta boca arriba';
   renderHand(myHand, room);
@@ -668,8 +692,8 @@ function updateRoom(room) {
   const teamAFull = room.players.filter((player) => player.team === 0).length >= teamSize;
   const teamBFull = room.players.filter((player) => player.team === 1).length >= teamSize;
 
-  elements.teamABtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
-  elements.teamBBtn.style.display = myPlayer && myPlayer.team === null ? 'inline-flex' : 'none';
+  elements.teamABtn.classList.toggle('hidden', !myPlayer || myPlayer.team !== null || Boolean(room.game));
+  elements.teamBBtn.classList.toggle('hidden', !myPlayer || myPlayer.team !== null || Boolean(room.game));
   elements.teamABtn.disabled = teamAFull;
   elements.teamBBtn.disabled = teamBFull;
   elements.teamABtn.title = teamAFull ? 'Este equipo ya está completo' : 'Seleccionar equipo A';
@@ -687,7 +711,8 @@ function updateRoom(room) {
 function createRoom() {
   const name = elements.playerName.value.trim() || 'Jugador';
   savePlayerName();
-  const mode = elements.gameModeSelect.value === '3v3' ? '3v3' : '2v2';
+  const selectedMode = document.querySelector('input[name="game-mode"]:checked')?.value;
+  const mode = selectedMode === '3v3' ? '3v3' : '2v2';
   socket.emit('create-room', { name, mode });
 }
 
@@ -715,26 +740,20 @@ function spectateRoom() {
 
 function leaveRoom() {
   socket.emit('return-to-lobby');
-  myPlayerId = null;
-  myRole = 'player';
-  currentRoomCode = '';
-  elements.roomCode.value = '';
-  elements.setupBox.classList.remove('hidden');
-  elements.gameBox.classList.add('hidden');
-  elements.resultText.textContent = 'Has vuelto a la pantalla principal.';
+  window.location.assign('/');
 }
 
 elements.createRoomBtn.addEventListener('click', createRoom);
+document.querySelectorAll('input[name="game-mode"]').forEach((option) => {
+  option.addEventListener('change', () => {
+    elements.setupPlayerCount.textContent = option.value === '3v3' ? '6' : '4';
+  });
+});
 elements.joinRoomBtn.addEventListener('click', joinRoom);
 elements.spectateBtn.addEventListener('click', spectateRoom);
 elements.returnMenuBtn.addEventListener('click', () => {
   socket.emit('return-to-lobby');
-  myPlayerId = null;
-  myRole = 'player';
-  currentRoomCode = '';
-  elements.roomCode.value = '';
-  elements.setupBox.classList.remove('hidden');
-  elements.gameBox.classList.add('hidden');
+  window.location.assign('/');
 });
 elements.teamABtn.addEventListener('click', () => socket.emit('select-team', { team: 0 }));
 elements.teamBBtn.addEventListener('click', () => socket.emit('select-team', { team: 1 }));

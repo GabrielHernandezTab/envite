@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Envite · Envite Bar</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/envite-lobby.css" />
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+
+  <div class="app-shell">
+    <header class="bar-topbar">
+      <div class="brand-lockup">
+        <div class="brand-mark">♠</div>
+        <div>
+          <div class="brand-kicker">LA NOCHE DEL</div>
+          <h1>ENVITE BAR</h1>
+        </div>
+      </div>
+      <div class="room-pill"><span id="room-code-badge">ENVITE</span></div>
+    </header>
+
+    <main class="main-stage">
+      <section class="setup-box lounge-card" id="setup-box">
+        <a href="/" class="back-button">← Todos los juegos</a>
+        <div class="lounge-title">
+          <span class="neon-dot"></span>
+          <div>
+            <p class="eyebrow">Mesa privada</p>
+            <h2>Entra a la partida</h2>
+          </div>
+        </div>
+        <p class="lounge-copy">Elige 2 vs 2 o 3 vs 3 al crear la sala. Al entrar, cada jugador escoge su equipo.</p>
+
+        <div class="setup-grid">
+          <div class="field">
+            <label for="player-name">TU NOMBRE</label>
+            <input id="player-name" maxlength="18" value="Jugador" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="room-code">CÓDIGO DE SALA</label>
+            <input id="room-code" maxlength="5" placeholder="ABCDE" autocomplete="off" />
+          </div>
+        </div>
+
+        <fieldset class="mode-picker">
+          <legend>FORMATO DE LA PARTIDA</legend>
+          <label class="mode-option">
+            <input type="radio" name="game-mode" value="2v2" checked />
+            <span><strong>2 vs 2</strong><small>4 jugadores · equipos de 2</small></span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="game-mode" value="3v3" />
+            <span><strong>3 vs 3</strong><small>6 jugadores · equipos de 3</small></span>
+          </label>
+        </fieldset>
+        <div class="buttons-row lounge-actions">
+          <button id="create-room-btn" class="gold-button">CREAR MESA</button>
+          <button id="join-room-btn" class="dark-button secondary">UNIRSE</button>
+          <button id="spectate-btn" class="dark-button secondary">ESPECTAR</button>
+        </div>
+
+        <div class="rules-strip">
+          <div><strong id="setup-player-count">4</strong><span>jugadores</span></div>
+          <div><strong>3</strong><span>chicos</span></div>
+          <div><strong>4 · 7 · 9</strong><span>envíos</span></div>
+          <div><strong>11</strong><span>tumbo</span></div>
+        </div>
+
+        <footer class="app-credits">
+          Cartas de la baraja española por <a href="https://commons.wikimedia.org/wiki/User:Basquetteur" target="_blank" rel="noopener">Basquetteur</a> (Wikimedia Commons), licencia <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener">CC BY-SA 3.0</a>.
+        </footer>
+      </section>
+
+      <section class="game-box hidden" id="game-box">
+        <div class="game-hud">
+          <div class="hud-block hud-room">
+            <span class="hud-label">MESA</span>
+            <strong id="hud-room-code">----</strong>
+            <span id="hud-round-small">Ronda 1</span>
+          </div>
+          <div class="hud-block hud-score">
+            <span class="hud-label">PIEDRAS</span>
+            <div class="score-line"><b id="score-a">0</b><span>—</span><b id="score-b">0</b></div>
+            <span><i id="chicos-a">Chicos: 0</i> · <i id="chicos-b">Chicos: 0</i></span>
+          </div>
+          <div class="hud-block hud-turn">
+            <span class="hud-label">ESTADO</span>
+            <strong id="status-text">Esperando jugadores</strong>
+            <span id="turn-indicator">Esperando turno</span>
+          </div>
+          <div class="hud-tools">
+            <button id="return-menu-btn" class="icon-button secondary" title="Salir">×</button>
+            <button id="close-room-btn" class="icon-button danger" title="Cerrar sala">⌑</button>
+          </div>
+        </div>
+
+        <section id="team-board" class="team-selection hidden" aria-label="Selección de equipos">
+          <div class="team-selection-heading">
+            <div><p class="eyebrow">Antes de empezar</p><h2>Elige tu equipo</h2></div>
+            <span id="team-selection-hint">Selecciona un equipo para sentarte en la mesa.</span>
+          </div>
+          <div class="team-choice-grid">
+            <article class="team-choice team-choice-a">
+              <div class="team-choice-top"><div><span class="team-color-dot"></span><strong>EQUIPO A</strong></div><b id="team-a-count">0 / 2</b></div>
+              <div id="team-a-players" class="team-choice-players"></div>
+              <button id="team-a-btn" class="team-choice-button" type="button">UNIRSE AL EQUIPO A <span>→</span></button>
+            </article>
+            <article class="team-choice team-choice-b">
+              <div class="team-choice-top"><div><span class="team-color-dot"></span><strong>EQUIPO B</strong></div><b id="team-b-count">0 / 2</b></div>
+              <div id="team-b-players" class="team-choice-players"></div>
+              <button id="team-b-btn" class="team-choice-button" type="button">UNIRSE AL EQUIPO B <span>→</span></button>
+            </article>
+          </div>
+        </section>
+
+        <div class="table-layout">
+          <aside class="left-rail">
+            <div class="rail-card players-rail">
+              <div class="rail-heading"><span>JUGADORES</span><em>4/4</em></div>
+              <div id="players-grid" class="players-list"></div>
+            </div>
+            <div class="rail-card mini-rules">
+              <div class="rail-heading"><span>ENVITE</span></div>
+              <p>El palo de la vira manda. Gana la carta de mayor valor según el Envite.</p>
+              <p>Los envíos suben: <b>4 → 7 → 9 → chico fuera</b>.</p>
+            </div>
+          </aside>
+
+          <section class="table-scene">
+            <div class="bar-backdrop">
+              <div class="bottle-row"><span>◒</span><span>◉</span><span>◒</span><span>◉</span><span>◒</span><span>◉</span></div>
+              <div class="bar-sign">ENVITE</div>
+              <div class="bar-lamp"></div>
+            </div>
+
+            <div class="felt-table">
+              <div class="table-edge"></div>
+              <div id="seat-positions" class="seat-positions"></div>
+
+              <div class="table-center">
+                <div class="turn-ring"></div>
+                <div class="vira-label">VIRA</div>
+                <div id="visible-card" class="card-face center-card"></div>
+                <div class="table-pot" id="table-cards"></div>
+              </div>
+
+              <div class="dealer-chip">ENVITE</div>
+            </div>
+
+            <div class="player-hand-zone">
+              <div class="hand-status">
+                <span class="hand-title">TU MANO</span>
+                <span id="turn-indicator-bottom">Esperando turno</span>
+              </div>
+              <div class="hand-panel" id="hand-panel">
+                <div class="hand" id="hand"></div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="right-rail">
+            <div class="bet-card" id="bet-display-card">
+              <span class="hud-label">ENVÍO ACTUAL</span>
+              <strong id="current-bet-value">—</strong>
+              <span id="current-bet-from">Sin envío</span>
+            </div>
+
+            <div class="action-card">
+              <div class="action-title">TU JUGADA</div>
+              <div id="envite-panel" class="hidden action-stack">
+                <button id="envite-4-btn" class="bet-button">ENVIAR <b>4</b></button>
+                <button id="envite-7-btn" class="bet-button">ENVIAR <b>7</b></button>
+                <button id="envite-9-btn" class="bet-button">ENVIAR <b>9</b></button>
+                <button id="envite-chico-btn" class="bet-button final-bet">CHICO FUERA</button>
+              </div>
+
+              <div id="bet-response-panel" class="hidden action-stack">
+                <p id="bet-response-text">Te han pegado envío.</p>
+                <button id="bet-accept-btn" class="accept-button">ACEPTAR</button>
+                <button id="bet-reject-btn" class="reject-button danger">NO ACEPTAR</button>
+                <button id="bet-raise-4-btn" class="raise-button secondary">SUBIR A 4</button>
+                <button id="bet-raise-7-btn" class="raise-button secondary">SUBIR A 7</button>
+                <button id="bet-raise-9-btn" class="raise-button secondary">SUBIR A 9</button>
+                <button id="bet-raise-chico-btn" class="raise-button secondary">SUBIR A CHICO</button>
+              </div>
+
+              <div id="tumbo-panel" class="hidden action-stack tumbo-action">
+                <strong>ESTÁS EN TUMBO</strong>
+                <p>Decide si juegas el tumbo.</p>
+                <button id="tumbo-yes-btn" class="accept-button">JUGAR</button>
+                <button id="tumbo-no-btn" class="reject-button danger">ACHICARSE</button>
+              </div>
+
+              <div class="waiting-action" id="waiting-action">Esperando tu turno…</div>
+            </div>
+
+            <div class="rail-card round-card">
+              <div class="rail-heading"><span>RONDA</span></div>
+              <strong id="round-text">Ronda 1 · hasta 3 chicos</strong>
+              <p id="result-text">Esperando jugadores.</p>
+            </div>
+
+            <div class="action-row">
+              <button id="renounce-round-btn" class="danger">Renuncio</button>
+              <button id="abandon-round-btn" class="danger">Abandonar ronda</button>
+            </div>
+          </aside>
+        </div>
+
+        <section class="history-panel">
+          <div class="history-header"><span>HISTORIAL</span><small>Jugadas de la mesa</small></div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+
+      </section>
+    </main>
+  </div>
+
+  <aside id="team-chat-panel" class="team-chat-panel hidden">
+    <div class="team-chat-header"><span>SEÑAS</span><small>Chat del equipo</small></div>
+    <div id="team-chat-messages" class="team-chat-messages"></div>
+    <form id="team-chat-form" class="team-chat-form">
+      <select id="team-chat-input" aria-label="Elige una seña">
+        <option value="">Seña…</option>
+        <option value="chilasco">chilasco</option><option value="medio flu">medio flu</option><option value="flu">flu</option>
+        <option value="malilla">malilla</option><option value="ciego">ciego</option><option value="rey">rey</option>
+        <option value="3 de bastos" class="sign-3v3-only">3 de bastos</option>
+        <option value="11 de bastos" class="sign-3v3-only">11 de bastos</option>
+        <option value="10 de oros" class="sign-3v3-only">10 de oros</option>
+      </select>
+      <button type="submit">➤</button>
+    </form>
+  </aside>
+
+  <div id="game-finished-modal" class="game-modal hidden" role="dialog" aria-modal="true">
+    <div class="game-modal-card"><p class="eyebrow">Partida terminada</p><h2>¡3 chicos!</h2><p id="game-finished-text">La partida ha finalizado.</p><div class="action-row"><button id="play-again-btn">JUGAR DE NUEVO</button><button id="close-finished-room-btn" class="danger">CERRAR SALA</button></div></div>
+  </div>
+
+  <div id="role-selection-modal" class="game-modal hidden" role="dialog" aria-modal="true">
+    <div class="game-modal-card"><p class="eyebrow">Equipo elegido</p><h2>Elige tu rol</h2><p id="role-selection-copy">Escoge cómo quieres jugar en tu equipo.</p><div class="action-row"><button id="mandador-btn">MANDADOR</button><button id="mandado-btn" class="secondary">MANDADO</button></div></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/game.js"></script>
+</body>
+</html>
